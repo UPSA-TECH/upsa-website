@@ -11,6 +11,8 @@ coverImage: /images/events/event-1.jpg
 homepageImage: /images/events/event-1.jpg
 photos:
   - /images/events/Consulate.jpg
+  - /images/events/Consulate-2.jpg
+  - /images/events/Consulate-1 .JPG
 attendees: 80
 description: >
   A relaxed mixer for meeting like-minded students and alumni, exchanging
