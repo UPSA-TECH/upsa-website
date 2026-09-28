@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { usePortalData, CURRENT_USER_ID } from '../_lib/PortalDataProvider';
+import { usePathname, useRouter } from 'next/navigation';
+import { useClerk } from '@clerk/nextjs';
+import { usePortalData } from '../_lib/PortalDataProvider';
 import Avatar from './Avatar';
 import RoleTag from './RoleTag';
 
@@ -19,10 +20,12 @@ const NAV_ITEMS = [
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { currentUser, state } = usePortalData();
+  const router = useRouter();
+  const { signOut } = useClerk();
+  const { currentUser, currentUserId, state } = usePortalData();
   const [open, setOpen] = useState(false);
 
-  const incomingCount = state.requests.filter(r => r.toId === CURRENT_USER_ID && r.status === 'pending').length;
+  const incomingCount = state.requests.filter(r => r.toId === currentUserId && r.status === 'pending').length;
 
   return (
     <div className="portal-shell">
@@ -61,7 +64,15 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         </nav>
 
         <div className="portal-sidebar-foot">
-          <Link href="/portal" onClick={() => setOpen(false)}>Log out</Link>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              signOut(() => router.push('/portal'));
+            }}
+          >
+            Log out
+          </button>
           <Link href="/" onClick={() => setOpen(false)}>&larr; Back to unitedpsa.org</Link>
         </div>
       </aside>

@@ -10,11 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -140,3 +144,24 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
 ]
+
+# Clerk owns auth on the frontend; Django only verifies its tokens.
+# See CLERK_ISSUER in .env.example for where to find this value.
+CLERK_ISSUER = os.environ.get("CLERK_ISSUER", "")
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "users.clerk_auth.ClerkJWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+}
+
+# Local disk storage for now (fine for dev). Swap MEDIA_ROOT for an R2/S3
+# backend via django-storages before this goes to production, so uploaded
+# resumes survive redeploys.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
