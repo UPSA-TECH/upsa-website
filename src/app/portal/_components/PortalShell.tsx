@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useClerk } from '@clerk/nextjs';
-import { usePortalData } from '../_lib/PortalDataProvider';
+import { PLACEHOLDER_NAME, usePortalData } from '../_lib/PortalDataProvider';
 import Avatar from './Avatar';
 import RoleTag from './RoleTag';
 
@@ -25,6 +25,13 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const { currentUser, currentUserId, state } = usePortalData();
   const [open, setOpen] = useState(false);
 
+  // Signing in (unlike signing up) skips onboarding, so send anyone who never
+  // finished it there instead of showing an empty "New member" profile.
+  const needsOnboarding = currentUser.name === PLACEHOLDER_NAME;
+  useEffect(() => {
+    if (needsOnboarding) router.replace('/portal/onboarding');
+  }, [needsOnboarding, router]);
+
   const incomingCount = state.requests.filter(r => r.toId === currentUserId && r.status === 'pending').length;
 
   return (
@@ -38,7 +45,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
         </div>
 
         <div className="portal-sidebar-user">
-          <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} size="sm" />
+          <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} imageUrl={currentUser.avatarUrl} size="sm" />
           <div>
             <div className="name">{currentUser.name}</div>
             <div className="role">{currentUser.headline}</div>

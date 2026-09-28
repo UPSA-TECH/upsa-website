@@ -12,6 +12,8 @@ export type Member = {
   name: string;
   initials: string;
   avatarColor: string;
+  avatarUrl?: string;
+  hasAvatar: boolean;
   headline: string;
   university: string;
   major?: string;
@@ -24,6 +26,7 @@ export type Member = {
   availability: Availability;
   isProfessional: boolean;
   visible: boolean;
+  emailNotifications: boolean;
 };
 
 export type RequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';

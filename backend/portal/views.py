@@ -7,9 +7,12 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import notifications
 from .models import Connection, ConnectionRequest, Message, Profile, Resume
 from .serializers import (
+    ALLOWED_AVATAR_CONTENT_TYPES,
     ALLOWED_RESUME_CONTENT_TYPES,
+    MAX_AVATAR_SIZE,
     MAX_RESUME_SIZE,
     ConnectionRequestSerializer,
     ConnectionSerializer,
@@ -48,6 +51,32 @@ class MemberProfileView(generics.RetrieveAPIView):
     lookup_field = "user_id"
 
 
+@api_view(["POST", "DELETE"])
+def upload_avatar(request):
+    profile, _ = Profile.objects.get_or_create(user=request.user)
+
+    if request.method == "DELETE":
+        if profile.avatar:
+            profile.avatar = None
+            profile.save(update_fields=["avatar"])
+        return Response(ProfileSerializer(profile, context={"request": request}).data)
+
+    file = request.FILES.get("file")
+    if not file:
+        raise ValidationError("No file uploaded.")
+    if file.content_type not in ALLOWED_AVATAR_CONTENT_TYPES:
+        raise ValidationError("Profile photo must be a JPG, PNG, or WEBP image.")
+    if file.size > MAX_AVATAR_SIZE:
+        raise ValidationError("Profile photo must be under 5MB.")
+
+    profile.avatar = file
+    profile.save(update_fields=["avatar"])
+    return Response(ProfileSerializer(profile, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+upload_avatar.cls.throttle_scope = "uploads"
+
+
 # --- Discover -------------------------------------------------------------
 
 
@@ -59,6 +88,14 @@ class ProfessionalListView(generics.ListAPIView):
             Q(mentor_available=True) | Q(networking_available=True)
         )
         params = self.request.query_params
+        if search := params.get("search"):
+            qs = qs.filter(
+                Q(name__icontains=search)
+                | Q(headline__icontains=search)
+                | Q(role__icontains=search)
+                | Q(company__icontains=search)
+                | Q(skills__icontains=search)
+            )
         if company := params.get("company"):
             qs = qs.filter(company__icontains=company)
         if industry := params.get("industry"):
@@ -78,6 +115,7 @@ class ProfessionalListView(generics.ListAPIView):
 class ConnectionRequestListCreateView(generics.ListCreateAPIView):
     serializer_class = ConnectionRequestSerializer
     pagination_class = None
+    throttle_scope = "requests"
 
     def get_queryset(self):
         user = self.request.user
@@ -97,7 +135,7 @@ class ConnectionRequestListCreateView(generics.ListCreateAPIView):
         if open_between.exists():
             raise ValidationError("There's already an open request between you two.")
 
-        serializer.save(from_user=user)
+        notifications.request_received(serializer.save(from_user=user))
 
 
 @api_view(["POST"])
@@ -106,6 +144,7 @@ def accept_request(request, pk):
     req.status = "accepted"
     req.save(update_fields=["status"])
     connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user)
+    notifications.request_accepted(req)
     return Response(ConnectionSerializer(connection).data, status=status.HTTP_201_CREATED)
 
 
@@ -159,6 +198,7 @@ def cancel_connection(request, pk):
 class ConnectionMessagesView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     pagination_class = None
+    throttle_scope = "messages"
 
     def _connection(self):
         return _connection_or_404(self.request, self.kwargs["pk"])
@@ -170,13 +210,15 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
         connection = self._connection()
         if connection.status == "cancelled":
             raise ValidationError("This connection is cancelled, no new messages.")
-        serializer.save(connection=connection, sender=self.request.user)
+        notifications.message_received(serializer.save(connection=connection, sender=self.request.user))
 
 
 # --- Resume -------------------------------------------------------------
 
 
 class ResumeView(APIView):
+    throttle_scope = "uploads"
+
     def get(self, request):
         resume = Resume.objects.filter(user=request.user).first()
         if resume is None:

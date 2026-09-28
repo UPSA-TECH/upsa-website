@@ -16,6 +16,9 @@ ALLOWED_RESUME_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
+MAX_AVATAR_SIZE = 5 * 1024 * 1024
+ALLOWED_AVATAR_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
 
 class AvailabilitySerializer(serializers.Serializer):
     mentor = serializers.BooleanField()
@@ -27,6 +30,9 @@ class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="user_id", read_only=True)
     availability = AvailabilitySerializer()
     isProfessional = serializers.BooleanField(source="is_professional")
+    avatarUrl = serializers.SerializerMethodField()
+    hasAvatar = serializers.SerializerMethodField()
+    emailNotifications = serializers.BooleanField(source="email_notifications", required=False)
 
     class Meta:
         model = Profile
@@ -45,7 +51,24 @@ class ProfileSerializer(serializers.ModelSerializer):
             "availability",
             "isProfessional",
             "deactivated",
+            "avatarUrl",
+            "hasAvatar",
+            "emailNotifications",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # A private preference: only the owner ever sees it.
+        request = self.context.get("request")
+        if request is None or request.user.id != instance.user_id:
+            data.pop("emailNotifications", None)
+        return data
+
+    def get_avatarUrl(self, obj):
+        return obj.avatar.url if obj.avatar else None
+
+    def get_hasAvatar(self, obj):
+        return bool(obj.avatar)
 
     def update(self, instance, validated_data):
         availability = validated_data.pop("availability", None)
