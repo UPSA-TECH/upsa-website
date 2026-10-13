@@ -1,4 +1,4 @@
-// Server-only — never import this in client components.
+// Server-only - never import this in client components.
 // Uses Google Calendar API v3 with a public-calendar API key.
 // Results are cached by Next.js for 5 minutes (revalidate: 300).
 
@@ -6,7 +6,7 @@ export interface CalEvent {
   slug: string;
   title: string;
   date: string;       // YYYY-MM-DD (Chicago time)
-  endDate?: string;   // YYYY-MM-DD — only set for multi-day events
+  endDate?: string;   // YYYY-MM-DD - only set for multi-day events
   time?: string;      // e.g. "6:00 PM – 8:00 PM CT"
   location: string;
   category?: string;  // only set via [category: X] tag in the description
@@ -50,7 +50,7 @@ function extractCategory(text: string): string | undefined {
   return found ?? raw;
 }
 
-// Google Calendar descriptions come back as HTML — convert to plain text.
+// Google Calendar descriptions come back as HTML - convert to plain text.
 function stripHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -83,7 +83,7 @@ function toChicagoTime(iso: string): string {
 
 export async function getGoogleCalendarEvents(): Promise<CalEvent[]> {
   if (!CALENDAR_ID || !API_KEY) {
-    console.warn('[google-calendar] GOOGLE_CALENDAR_ID or GOOGLE_API_KEY not set — returning empty list.');
+    console.warn('[google-calendar] GOOGLE_CALENDAR_ID or GOOGLE_API_KEY not set - returning empty list.');
     return [];
   }
 

@@ -110,5 +110,7 @@ The `/events` page reads a public Google Calendar. See [docs/google-calendar.md]
 - [docs/deployment.md](docs/deployment.md): production setup, step by step, and every environment variable
 - [docs/runbook.md](docs/runbook.md): running it day to day, moderating members, backups, and fixing problems
 - [docs/api-contract.md](docs/api-contract.md): the portal API reference
+- [STRUCTURE.md](STRUCTURE.md): a deeper walkthrough of the codebase layout
+- [SECURITY.md](SECURITY.md): reporting a vulnerability, and how auth/data handling works
 
 The Netlify site builds with `npm run build` (see `netlify.toml`). The backend's start command is in `backend/Procfile`.

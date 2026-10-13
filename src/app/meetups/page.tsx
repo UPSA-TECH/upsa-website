@@ -2,7 +2,7 @@ import { getMeetups, formatDate } from '@/lib/content';
 import GalleryClient, { type MeetupCard } from '@/components/GalleryClient';
 import '@/styles/meetups.css';
 
-export const metadata = { title: 'Gallery — UPSA City Meetups' };
+export const metadata = { title: 'Gallery - UPSA City Meetups' };
 
 export default function MeetupsPage() {
   const meetups = getMeetups()
@@ -39,7 +39,7 @@ export default function MeetupsPage() {
       <div className="meetups-page">
         {meetups.length === 0 ? (
           <p style={{ color: 'var(--ink-3)', fontSize: 15, padding: '80px 0' }}>
-            No meetups yet — check back after our first city gathering.
+            No meetups yet. Check back after our first city gathering.
           </p>
         ) : (
           <GalleryClient cards={cards} states={states} />

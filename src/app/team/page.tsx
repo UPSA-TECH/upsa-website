@@ -50,7 +50,7 @@ export default function TeamPage() {
           </div>
         ) : (
           <div className="empty-state">
-            <p>Team members will appear here — add them from the admin panel.</p>
+            <p>Team members will appear here. Add them from the admin panel.</p>
           </div>
         )}
       </section>

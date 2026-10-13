@@ -29,7 +29,7 @@
   --radius-md:   6px;
   --radius-pill: 999px;
 
-  /* Nav height — used for scroll offsets */
+  /* Nav height - used for scroll offsets */
   --nav-h: 112px;
 }
 
@@ -67,7 +67,7 @@ p, h1, h2, h3, h4, h5, h6, a, span, li, dd, dt {
 
 /* ---- Shared utility classes ---- */
 
-/* Page wrapper — consistent horizontal padding */
+/* Page wrapper - consistent horizontal padding */
 .container {
   width: 100%;
   max-width: 1280px;

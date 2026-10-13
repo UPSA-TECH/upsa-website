@@ -17,7 +17,7 @@ export default function WorkshopsPage() {
           <h1>Workshops &amp; <em>Seminars</em></h1>
           <p>
             Professional development, career panels, immigration workshops, and cultural
-            seminars — skills and knowledge to help you thrive in the US.
+            seminars with the skills and knowledge to help you thrive in the US.
           </p>
         </div>
       </div>
@@ -79,7 +79,7 @@ export default function WorkshopsPage() {
 
         {all.length === 0 && (
           <div className="empty-state" style={{padding:'120px 20px'}}>
-            <p>No workshops yet — add one from the admin panel.</p>
+            <p>No workshops yet. Add one from the admin panel.</p>
           </div>
         )}
       </div>

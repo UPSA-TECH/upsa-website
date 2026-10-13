@@ -8,7 +8,7 @@ const HOTLINES = [
   {
     name: 'Emergency Services',
     number: '911',
-    desc: 'Police, fire, ambulance — call immediately for any life-threatening emergency.',
+    desc: 'Police, fire, ambulance. Call immediately for any life-threatening emergency.',
     href: 'tel:911',
   },
   {

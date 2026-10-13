@@ -55,7 +55,7 @@
 .line-c { left: 16%; top: 72%; width: 54vw; transform: rotate(-9deg)  scaleX(0); animation-delay: 0.18s; --trace-rotate:  -9deg; }
 .line-d { left: 66%; top: 50%; width: 28vw; transform: rotate(74deg)  scaleX(0); animation-delay: 0.28s; --trace-rotate:  74deg; }
 
-/* additional lines — spread across the scene */
+/* additional lines - spread across the scene */
 .line-e { left: 28%; top: 42%; width: 32vw; transform: rotate(-22deg) scaleX(0); animation-delay: 0.06s; --trace-rotate: -22deg; }
 .line-f { left: 52%; top: 58%; width: 40vw; transform: rotate(148deg) scaleX(0); animation-delay: 0.14s; --trace-rotate: 148deg; }
 .line-g { left:  8%; top: 58%; width: 26vw; transform: rotate(-48deg) scaleX(0); animation-delay: 0.22s; --trace-rotate: -48deg; }

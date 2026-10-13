@@ -26,19 +26,19 @@ To create another admin: on the host's shell run `python manage.py createsuperus
 
 ## Listing as a mentor/professional
 
-This is self-serve, there is no approval step. A member fills in their own company and role in Edit Profile, then clicks **List me as a mentor/professional** — they're discoverable immediately. There's no reliable way to verify anyone's claimed employer anyway (LinkedIn has the same gap), so a manual review step was only ever a speed bump, not a real check. A member can unlist themselves the same way, any time.
+This is self-serve, there is no approval step. A member fills in their own company and role in Edit Profile, then clicks **List me as a mentor/professional** - they're discoverable immediately. There's no reliable way to verify anyone's claimed employer anyway (LinkedIn has the same gap), so a manual review step was only ever a speed bump, not a real check. A member can unlist themselves the same way, any time.
 
 Since there's no gatekeeper, the backstop is reactive instead: see **Reviewing reported profiles** below.
 
-You can still untick **Is professional** yourself in the admin panel if you need to remove someone from Discover directly (e.g. after reviewing a report) — that doesn't require the member's cooperation.
+You can still untick **Is professional** yourself in the admin panel if you need to remove someone from Discover directly (e.g. after reviewing a report) - that doesn't require the member's cooperation.
 
 ## Reviewing reported profiles
 
-Any member can report a profile as fake or suspicious from that person's page. Once **3 distinct members** report the same profile, it's automatically marked **Flagged for review** in the admin panel — that's your signal to look at it.
+Any member can report a profile as fake or suspicious from that person's page. Once **3 distinct members** report the same profile, it's automatically marked **Flagged for review** in the admin panel - that's your signal to look at it.
 
-1. Admin panel, **Portal, Profiles**. Filter by **Flagged for review**, or sort — flagged profiles are ordered first.
+1. Admin panel, **Portal, Profiles**. Filter by **Flagged for review**, or sort - flagged profiles are ordered first.
 2. Admin panel, **Portal, Profile reports** shows every individual report, including the reporter, who they reported, and any reason given, newest first.
-3. If it's genuinely fake: untick **Is professional** to remove them from Discover, or tick **Deactivated** to hide the whole profile. Reporting itself never auto-hides anyone — that decision is always yours.
+3. If it's genuinely fake: untick **Is professional** to remove them from Discover, or tick **Deactivated** to hide the whole profile. Reporting itself never auto-hides anyone - that decision is always yours.
 4. Flags don't clear themselves. Once you've reviewed one, untick **Flagged for review** so it drops off the list.
 
 ## Moderating a member

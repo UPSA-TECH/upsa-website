@@ -11,7 +11,7 @@ export default function HeroWelcome() {
   }, []);
 
   return (
-    <div className="hero-welcome" aria-label="Welcome — Khush Aamadeed">
+    <div className="hero-welcome" aria-label="Welcome - Khush Aamadeed">
       <div className="hw-text-wrap">
         <span className={`hw-text hw-en${phase === 'en' ? ' hw-visible' : ''}`}>
           Welcome

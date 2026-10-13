@@ -10,7 +10,7 @@ import '@/styles/footer.css';
 import '@/styles/opening-motion.css';
 
 export const metadata: Metadata = {
-  title: { default: 'UPSA — United Pakistani Students & Alumni Association', template: '%s | UPSA' },
+  title: { default: 'UPSA - United Pakistani Students & Alumni Association', template: '%s | UPSA' },
   description: 'United Pakistani Students & Alumni Association. Bridging generations, building futures across 35+ US campuses.',
   openGraph: {
     siteName: 'UPSA',
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en">
         <head>
-          {/* Netlify Identity — required for Decap CMS login redirect */}
+          {/* Netlify Identity - required for Decap CMS login redirect */}
           <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" async />
         </head>
         <body className="intro-lock">
