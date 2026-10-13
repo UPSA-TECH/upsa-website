@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The Django backend, including its vendored JS (admin assets, jQuery) -
+    // not this linter's concern, and was being swept in by accident.
+    "backend/**",
   ]),
 ]);
 
