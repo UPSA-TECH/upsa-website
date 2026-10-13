@@ -90,7 +90,7 @@ function resultsOf<T>(data: Paginated<T>): T[] {
 
 // --- mapping helpers: API shape -> frontend shape --------------------------
 
-function initialsFromName(name: string) {
+export function initialsFromName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return parts.slice(0, 2).map(p => p[0]!.toUpperCase()).join('') || 'U';
 }
