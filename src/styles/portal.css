@@ -743,7 +743,7 @@
 /* ---------- Dashboard ---------- */
 .progress-track { flex: 1; height: 8px; background: var(--paper-deep); border-radius: 999px; overflow: hidden; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, var(--moss-mid), var(--moss)); border-radius: 999px; transition: width .6s var(--ease-out); }
-.stat-row { display: flex; gap: 10px; }
+.stat-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .stat-tile { flex: 1; min-width: 0; padding: 10px 4px 2px; border-radius: var(--radius-sm); transition: background .2s; }
 .stat-tile:hover { background: var(--paper-deep); }
 .stat-num { font-family: 'Fraunces', serif; font-size: 27px; color: var(--ink); line-height: 1; }
@@ -783,11 +783,12 @@
 .settings-section h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; color: var(--ink); margin-bottom: 4px; }
 .settings-section .desc { font-size: 13px; color: var(--ink-3); margin-bottom: 14px; }
 .settings-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   padding: 16px 18px; background: #fff; border-radius: var(--radius-md); margin-bottom: 8px;
   box-shadow: var(--shadow-xs); transition: box-shadow .2s;
 }
 .settings-row:hover { box-shadow: var(--shadow-sm); }
+.settings-row .copy { flex: 1; min-width: 180px; }
 .settings-row .copy strong { display: block; font-size: 13.5px; color: var(--ink); }
 .settings-row .copy span { font-size: 12px; color: var(--ink-3); }
 .danger-zone { border: 1px solid rgba(140,59,46,.35); border-radius: var(--radius-lg); padding: 20px; background: rgba(140,59,46,.04); }
@@ -856,9 +857,11 @@
     transition: color .15s;
   }
   .portal-mobile-toggle:hover { color: var(--moss); }
-  .portal-content { padding: 24px 20px 64px; }
-  .portal-topbar { padding: 14px 20px; }
+  .portal-content { padding: 24px 16px 64px; }
+  .portal-topbar { padding: 14px 16px; }
   .profile-grid { grid-template-columns: 1fr; }
+  .pf-grid, .conn-grid { grid-template-columns: 1fr; }
+  .filter-field { min-width: 0; flex: 1 1 140px; }
   .portal-auth-shell { grid-template-columns: 1fr; min-height: 0; }
   .portal-auth-intro { padding: 40px 24px; }
   .portal-auth-points { display: none; }
