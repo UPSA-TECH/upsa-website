@@ -28,6 +28,8 @@ export default function ProfilePage() {
   const [industry, setIndustry] = useState(currentUser.industry ?? '');
   const [location, setLocation] = useState(currentUser.location ?? '');
   const [listingBusy, setListingBusy] = useState(false);
+  const [showStudentFields, setShowStudentFields] = useState(Boolean(currentUser.university || currentUser.major));
+  const [showProfessionalFields, setShowProfessionalFields] = useState(Boolean(currentUser.isProfessional || currentUser.company || currentUser.role));
 
   const hasProfessionalDetails = company.trim() && role.trim();
 
@@ -207,7 +209,7 @@ export default function ProfilePage() {
             <input id="p-name" value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className="field">
-            <label htmlFor="p-headline">Title</label>
+            <label htmlFor="p-headline">Headline <span className="hint" style={{ fontWeight: 400 }}>(shown right under your name)</span></label>
             <input
               id="p-headline"
               value={headline}
@@ -215,70 +217,90 @@ export default function ProfilePage() {
               placeholder="e.g. CS Junior @ UCF, or Software Engineer @ Microsoft"
             />
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="p-university">University / company</label>
-              <input id="p-university" value={university} onChange={e => setUniversity(e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="p-major">Major / role</label>
-              <input id="p-major" value={major} onChange={e => setMajor(e.target.value)} />
-            </div>
-          </div>
           <div className="field">
-            <label htmlFor="p-bio">About</label>
+            <label htmlFor="p-bio">About <span className="hint" style={{ fontWeight: 400 }}>(optional)</span></label>
             <textarea id="p-bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} />
           </div>
           <div className="field">
-            <label htmlFor="p-skills">Skills &amp; interests (comma separated)</label>
+            <label htmlFor="p-skills">Skills &amp; interests <span className="hint" style={{ fontWeight: 400 }}>(optional, comma separated)</span></label>
             <input id="p-skills" value={skillsText} onChange={e => setSkillsText(e.target.value)} />
           </div>
 
-          <h3 style={{ marginTop: 22 }}>Professional details</h3>
+          <h3 style={{ marginTop: 22 }}>I am a...</h3>
           <p className="hint" style={{ marginBottom: 14 }}>
-            Fill these in to list yourself as a mentor/professional in Discover. You&apos;re listed immediately, no review wait.
+            Check what applies - you can be both. This decides which details show on your profile.
           </p>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="p-company">Company</label>
-              <input id="p-company" value={company} onChange={e => setCompany(e.target.value)} placeholder="e.g. Microsoft" />
-            </div>
-            <div className="field">
-              <label htmlFor="p-role">Job title</label>
-              <input id="p-role" value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Software Engineer" />
-            </div>
+          <div className="type-choice-field" style={{ marginBottom: 18 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={showStudentFields} onChange={e => setShowStudentFields(e.target.checked)} />
+              I&apos;m a student
+            </label>
+            {showStudentFields && (
+              <div className="field-row" style={{ marginLeft: 26 }}>
+                <div className="field">
+                  <label htmlFor="p-university">University</label>
+                  <input id="p-university" value={university} onChange={e => setUniversity(e.target.value)} placeholder="e.g. UCF" />
+                </div>
+                <div className="field">
+                  <label htmlFor="p-major">Major</label>
+                  <input id="p-major" value={major} onChange={e => setMajor(e.target.value)} placeholder="e.g. Computer Science" />
+                </div>
+              </div>
+            )}
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="p-industry">Industry</label>
-              <input id="p-industry" value={industry} onChange={e => setIndustry(e.target.value)} placeholder="e.g. Technology" />
-            </div>
-            <div className="field">
-              <label htmlFor="p-location">Location</label>
-              <input id="p-location" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Seattle, WA" />
-            </div>
-          </div>
+          <div className="type-choice-field">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={showProfessionalFields} onChange={e => setShowProfessionalFields(e.target.checked)} />
+              I&apos;m a professional
+            </label>
+            {showProfessionalFields && (
+              <>
+                <div className="field-row" style={{ marginLeft: 26 }}>
+                  <div className="field">
+                    <label htmlFor="p-company">Company</label>
+                    <input id="p-company" value={company} onChange={e => setCompany(e.target.value)} placeholder="e.g. Microsoft" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="p-role">Job title</label>
+                    <input id="p-role" value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Software Engineer" />
+                  </div>
+                </div>
+                <div className="field-row" style={{ marginLeft: 26 }}>
+                  <div className="field">
+                    <label htmlFor="p-industry">Industry</label>
+                    <input id="p-industry" value={industry} onChange={e => setIndustry(e.target.value)} placeholder="e.g. Technology" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="p-location">Location</label>
+                    <input id="p-location" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Seattle, WA" />
+                  </div>
+                </div>
 
-          {currentUser.isProfessional ? (
-            <div style={{ marginBottom: 14 }}>
-              <p className="hint" style={{ marginBottom: 8 }}>You&apos;re listed as a mentor/professional. Save changes below to update these details.</p>
-              <button type="button" className="btn-ghost" onClick={unlistMe} disabled={listingBusy}>
-                {listingBusy ? 'Working…' : 'Remove myself from Discover'}
-              </button>
-            </div>
-          ) : (
-            <div style={{ marginBottom: 14 }}>
-              <button
-                type="button"
-                className="btn-outline btn-sm"
-                onClick={listMe}
-                disabled={!hasProfessionalDetails || listingBusy}
-              >
-                {listingBusy ? 'Listing…' : 'List me as a mentor/professional'}
-              </button>
-              {!hasProfessionalDetails && <p className="hint" style={{ marginTop: 6 }}>Add a company and job title first.</p>}
-            </div>
-          )}
+                <div style={{ marginBottom: 14, marginLeft: 26 }}>
+                  {currentUser.isProfessional ? (
+                    <>
+                      <p className="hint" style={{ marginBottom: 8 }}>You&apos;re listed as a mentor/professional. Save changes below to update these details.</p>
+                      <button type="button" className="btn-ghost" onClick={unlistMe} disabled={listingBusy}>
+                        {listingBusy ? 'Working…' : 'Remove myself from Discover'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-outline btn-sm"
+                        onClick={listMe}
+                        disabled={!hasProfessionalDetails || listingBusy}
+                      >
+                        {listingBusy ? 'Listing…' : 'List me as a mentor/professional'}
+                      </button>
+                      {!hasProfessionalDetails && <p className="hint" style={{ marginTop: 6 }}>Add a company and job title above first.</p>}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           <div className="modal-actions" style={{ justifyContent: 'flex-start' }}>
             <button className="btn-primary btn-sm" onClick={save}>Save changes</button>
