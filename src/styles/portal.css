@@ -297,8 +297,9 @@
    decoration (most visible on a development instance) at the card's edge. */
 .portal-auth-card { overflow: hidden; }
 .portal-clerk-card .cl-main { gap: 18px; }
-.portal-clerk-card .cl-socialButtons { gap: 10px; }
+.portal-clerk-card .cl-socialButtons { gap: 10px; position: relative; overflow: hidden; }
 .portal-clerk-card .cl-socialButtonsBlockButton {
+  position: relative; overflow: hidden;
   padding: 12px 16px; border: 1.5px solid var(--rule);
   border-radius: var(--radius-sm) !important; /* Clerk sets its own radius inline, which otherwise wins over this rule regardless of specificity */
   transition: border-color .18s, background .18s;
