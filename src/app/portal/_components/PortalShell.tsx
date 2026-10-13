@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useClerk } from '@clerk/nextjs';
-import { LayoutDashboard, Compass, Inbox, Users, MessageSquare, UserCircle, Settings, LogOut, Menu, X, Bell } from 'lucide-react';
+import { LayoutDashboard, Compass, Inbox, Users, MessageSquare, UserCircle, Settings, LogOut, Menu, X, Bell, UserX } from 'lucide-react';
 import { PLACEHOLDER_NAME, usePortalData } from '../_lib/PortalDataProvider';
+import { ApiError } from '../_lib/api';
 import Avatar from './Avatar';
 import RoleTag from './RoleTag';
 import BrandMark from './BrandMark';
+import { useToast } from './Toast';
 
 const NAV_ITEMS = [
   { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,9 +26,11 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useClerk();
-  const { currentUser, currentUserId, state } = usePortalData();
+  const { currentUser, currentUserId, state, setDeactivated } = usePortalData();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
@@ -43,6 +47,18 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   }, [needsOnboarding, router]);
 
   const incomingCount = state.requests.filter(r => r.toId === currentUserId && r.status === 'pending').length;
+
+  async function handleReactivate() {
+    setReactivating(true);
+    try {
+      await setDeactivated(false);
+      toast('Account reactivated.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not reactivate your account. Try again.', 'error');
+    } finally {
+      setReactivating(false);
+    }
+  }
 
   return (
     <div className="portal-shell">
@@ -104,7 +120,19 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             </Link>
           )}
         </div>
-        <div className="portal-content">{children}</div>
+        <div className="portal-content">
+          {currentUser.visible || needsOnboarding ? children : (
+            <div className="empty-state">
+              <UserX className="empty-state-icon" aria-hidden="true" />
+              <span>Your account is deactivated.</span>
+              <p style={{ marginTop: 14 }}>
+                <button className="btn-primary btn-sm" onClick={handleReactivate} disabled={reactivating}>
+                  {reactivating ? 'Working…' : 'Reactivate account'}
+                </button>
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {open && <div className="portal-sidebar-scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
