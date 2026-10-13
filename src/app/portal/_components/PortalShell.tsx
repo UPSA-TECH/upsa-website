@@ -4,18 +4,20 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useClerk } from '@clerk/nextjs';
+import { LayoutDashboard, Compass, Inbox, Users, MessageSquare, UserCircle, Settings, LogOut, Menu, X, Bell } from 'lucide-react';
 import { PLACEHOLDER_NAME, usePortalData } from '../_lib/PortalDataProvider';
 import Avatar from './Avatar';
 import RoleTag from './RoleTag';
+import BrandMark from './BrandMark';
 
 const NAV_ITEMS = [
-  { href: '/portal/dashboard', label: 'Dashboard' },
-  { href: '/portal/discover', label: 'Discover' },
-  { href: '/portal/requests', label: 'Requests', countKey: 'incoming' as const },
-  { href: '/portal/connections', label: 'Connections' },
-  { href: '/portal/messages', label: 'Messages' },
-  { href: '/portal/profile', label: 'My Profile' },
-  { href: '/portal/settings', label: 'Settings' },
+  { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/portal/discover', label: 'Discover', icon: Compass },
+  { href: '/portal/requests', label: 'Requests', icon: Inbox, countKey: 'incoming' as const },
+  { href: '/portal/connections', label: 'Connections', icon: Users },
+  { href: '/portal/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/portal/profile', label: 'My Profile', icon: UserCircle },
+  { href: '/portal/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function PortalShell({ children }: { children: React.ReactNode }) {
@@ -24,6 +26,14 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const { signOut } = useClerk();
   const { currentUser, currentUserId, state } = usePortalData();
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Signing in (unlike signing up) skips onboarding, so send anyone who never
   // finished it there instead of showing an empty "New member" profile.
@@ -38,24 +48,22 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     <div className="portal-shell">
       <aside className={`portal-sidebar${open ? ' open' : ''}`}>
         <div className="portal-sidebar-brand">
-          <img src="/images/logos/upsa-logo.png" alt="" />
-          <div>
-            <span>UPSA Portal</span>
-          </div>
+          <BrandMark on="dark" />
         </div>
 
         <div className="portal-sidebar-user">
-          <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} imageUrl={currentUser.avatarUrl} size="sm" />
+          <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} imageUrl={currentUser.avatarUrl} size="md" />
           <div>
             <div className="name">{currentUser.name}</div>
             <div className="role">{currentUser.headline}</div>
-            <div style={{ marginTop: 6 }}><RoleTag isProfessional={currentUser.isProfessional} professionalRequested={currentUser.professionalRequested} /></div>
+            <div style={{ marginTop: 6 }}><RoleTag isProfessional={currentUser.isProfessional} /></div>
           </div>
         </div>
 
         <nav className="portal-nav" aria-label="Portal navigation">
           {NAV_ITEMS.map(item => {
             const isActive = pathname === item.href || (item.href !== '/portal/dashboard' && pathname?.startsWith(item.href));
+            const Icon = item.icon;
             return (
               <Link
                 key={item.href}
@@ -63,7 +71,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
                 className={isActive ? 'active' : ''}
                 onClick={() => setOpen(false)}
               >
-                <span>{item.label}</span>
+                <span className="portal-nav-label"><Icon size={18} strokeWidth={2} />{item.label}</span>
                 {item.countKey === 'incoming' && incomingCount > 0 && <span className="count">{incomingCount}</span>}
               </Link>
             );
@@ -78,21 +86,28 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               signOut(() => router.push('/portal'));
             }}
           >
-            Log out
+            <LogOut size={15} strokeWidth={2.25} /> Log out
           </button>
           <Link href="/" onClick={() => setOpen(false)}>&larr; Back to unitedpsa.org</Link>
         </div>
       </aside>
 
       <div className="portal-main">
-        <div className="portal-topbar">
+        <div className={`portal-topbar${scrolled ? ' scrolled' : ''}`}>
           <button className="portal-mobile-toggle" onClick={() => setOpen(o => !o)} aria-label="Toggle navigation" aria-expanded={open}>
-            <span />
+            {open ? <X size={18} /> : <Menu size={18} />}
             Menu
           </button>
+          {incomingCount > 0 && (
+            <Link href="/portal/requests" className="portal-topbar-badge">
+              <Bell size={15} strokeWidth={2} /> {incomingCount} new request{incomingCount === 1 ? '' : 's'}
+            </Link>
+          )}
         </div>
         <div className="portal-content">{children}</div>
       </div>
+
+      {open && <div className="portal-sidebar-scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
     </div>
   );
 }

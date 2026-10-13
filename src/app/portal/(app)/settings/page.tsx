@@ -1,34 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { UserX } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
+import { useToast } from '../../_components/Toast';
+import { ApiError } from '../../_lib/api';
 
 export default function SettingsPage() {
   const { currentUser, updateProfile, setDeactivated } = usePortalData();
-  const [toast, setToast] = useState<string | null>(null);
+  const toast = useToast();
 
-  function flash(msg: string) {
-    setToast(msg);
-    window.setTimeout(() => setToast(null), 2200);
+  async function toggleReferrals(value: boolean) {
+    try {
+      await updateProfile({ referralsAvailable: value });
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not save that change. Try again.', 'error');
+    }
   }
 
-  function toggle(key: 'mentor' | 'networking' | 'referrals', value: boolean) {
-    updateProfile({ availability: { ...currentUser.availability, [key]: value } });
+  async function handleDeactivate() {
+    if (!window.confirm('Deactivate your account? Your profile will stop appearing in Discover.')) return;
+    try {
+      await setDeactivated(true);
+      toast('Account deactivated.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not deactivate your account. Try again.', 'error');
+    }
   }
 
-  function handleDeactivate() {
-    if (window.confirm('Deactivate your account? Your profile will stop appearing in Discover.')) {
-      setDeactivated(true);
-      flash('Account deactivated.');
+  async function handleReactivate() {
+    try {
+      await setDeactivated(false);
+      toast('Account reactivated.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not reactivate your account. Try again.', 'error');
     }
   }
 
   if (!currentUser.visible) {
     return (
       <div className="empty-state">
+        <UserX className="empty-state-icon" aria-hidden="true" />
         <span>Your account is deactivated.</span>
         <p style={{ marginTop: 14 }}>
-          <button className="btn-primary btn-sm" onClick={() => { setDeactivated(false); flash('Account reactivated.'); }}>
+          <button className="btn-primary btn-sm" onClick={handleReactivate}>
             Reactivate account
           </button>
         </p>
@@ -45,34 +60,18 @@ export default function SettingsPage() {
 
       <div className="settings-section">
         <h2>Discoverability</h2>
-        <p className="desc">Off by default. Turning these on is what makes your profile visible to other members in Discover.</p>
+        <p className="desc">
+          {currentUser.isProfessional
+            ? "You're verified as a mentor/professional, so you're automatically visible in Discover, no switch needed."
+            : <>Verified mentors/professionals are automatically visible in Discover, no switch needed. Not listed yet? Request that from your <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Profile</Link>.</>}
+        </p>
         <div className="settings-row">
           <div className="copy">
-            <strong>Open to mentoring</strong>
-            <span>Appear in Discover for members looking for a mentor.</span>
+            <strong>Open to referral conversations</strong>
+            <span>Shown as a note on your profile and offered as a request reason. A referral is never guaranteed, this only signals you&apos;re open to the conversation.</span>
           </div>
           <label className="switch">
-            <input aria-label="Open to mentoring" type="checkbox" checked={currentUser.availability.mentor} onChange={e => toggle('mentor', e.target.checked)} />
-            <span className="track" />
-          </label>
-        </div>
-        <div className="settings-row">
-          <div className="copy">
-            <strong>Open to networking</strong>
-            <span>Appear in Discover for general professional networking.</span>
-          </div>
-          <label className="switch">
-            <input aria-label="Open to networking" type="checkbox" checked={currentUser.availability.networking} onChange={e => toggle('networking', e.target.checked)} />
-            <span className="track" />
-          </label>
-        </div>
-        <div className="settings-row">
-          <div className="copy">
-            <strong>Consider referral conversations</strong>
-            <span>Shown as a note on your profile. A referral is never guaranteed, this only signals you&apos;re open to the conversation.</span>
-          </div>
-          <label className="switch">
-            <input aria-label="Consider referral conversations" type="checkbox" checked={currentUser.availability.referrals} onChange={e => toggle('referrals', e.target.checked)} />
+            <input aria-label="Open to referral conversations" type="checkbox" checked={currentUser.referralsAvailable} onChange={e => toggleReferrals(e.target.checked)} />
             <span className="track" />
           </label>
         </div>
@@ -91,7 +90,13 @@ export default function SettingsPage() {
               aria-label="Email me about new activity"
               type="checkbox"
               checked={currentUser.emailNotifications}
-              onChange={e => updateProfile({ emailNotifications: e.target.checked })}
+              onChange={async e => {
+                try {
+                  await updateProfile({ emailNotifications: e.target.checked });
+                } catch (err) {
+                  toast(err instanceof ApiError ? err.message : 'Could not save that change. Try again.', 'error');
+                }
+              }}
             />
             <span className="track" />
           </label>
@@ -122,8 +127,6 @@ export default function SettingsPage() {
         <p className="desc">Your profile stops appearing in Discover. You can reactivate any time.</p>
         <button className="btn-outline btn-sm" onClick={handleDeactivate}>Deactivate account</button>
       </div>
-
-      {toast && <div className="toast">{toast}</div>}
     </>
   );
 }

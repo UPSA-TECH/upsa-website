@@ -1,15 +1,35 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { Users, MessageSquare, CheckCircle2, Ban, Paperclip } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
+import { useChatWidget } from '../../_lib/ChatWidgetProvider';
 import { REQUEST_TYPE_LABELS } from '../../_lib/types';
+import { ApiError } from '../../_lib/api';
 import Avatar from '../../_components/Avatar';
 import StatusPill from '../../_components/StatusPill';
+import { useToast } from '../../_components/Toast';
 
 export default function ConnectionsPage() {
-  const { state, currentUserId, completeConnection, cancelConnection, shareResumeWithConnection } = usePortalData();
+  const { state, currentUserId, completeConnection, cancelConnection } = usePortalData();
+  const { openChat } = useChatWidget();
+  const toast = useToast();
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const connections = state.connections.filter(c => c.memberIds.includes(currentUserId));
+
+  async function run(id: string, action: () => Promise<void>, successMsg: string, failMsg: string) {
+    setBusyId(id);
+    try {
+      await action();
+      toast(successMsg, 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : failMsg, 'error');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <>
@@ -20,6 +40,7 @@ export default function ConnectionsPage() {
 
       {connections.length === 0 ? (
         <div className="empty-state">
+          <Users className="empty-state-icon" aria-hidden="true" />
           <span>No connections yet. Accepted requests will show up here.</span>
           <p style={{ marginTop: 14 }}><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></p>
         </div>
@@ -30,6 +51,7 @@ export default function ConnectionsPage() {
             const other = state.members[otherId];
             if (!other) return null;
             const sourceRequest = state.requests.find(r => r.id === c.requestId);
+            const busy = busyId === c.id;
             return (
               <div className="conn-card" key={c.id}>
                 <div className="conn-card-top">
@@ -48,26 +70,39 @@ export default function ConnectionsPage() {
                   {state.resumeSharedWith.includes(c.id) ? (
                     <span style={{ color: 'var(--moss)', fontWeight: 600 }}>Resume shared with {other.name.split(' ')[0]}</span>
                   ) : state.resume ? (
-                    <button className="btn-ghost" style={{ padding: 0 }} onClick={() => shareResumeWithConnection(c.id)}>
-                      Share resume with {other.name.split(' ')[0]}
+                    <button className="btn-ghost" style={{ padding: 0 }} onClick={() => openChat(c.id)}>
+                      <Paperclip size={15} /> Share your resume from the chat
                     </button>
                   ) : (
-                    <span>No resume uploaded yet. <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Add one</Link> to share it here.</span>
+                    <span>No resume uploaded yet. <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Add one</Link> to share it in chat.</span>
                   )}
                 </div>
 
                 <div className="conn-card-foot">
                   <StatusPill status={c.status} />
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <Link href={`/portal/messages/${c.id}`} className="btn-outline btn-sm">Message</Link>
+                    <button className="btn-outline btn-sm" onClick={() => openChat(c.id)}>
+                      <MessageSquare size={15} /> Message
+                    </button>
                     {c.status === 'active' && (
-                      <button className="btn-primary btn-sm" onClick={() => completeConnection(c.id)}>Mark complete</button>
+                      <button
+                        className="btn-primary btn-sm"
+                        disabled={busy}
+                        onClick={() => run(c.id, () => completeConnection(c.id), 'Connection marked complete.', 'Could not update that connection. Try again.')}
+                      >
+                        <CheckCircle2 size={15} /> Mark complete
+                      </button>
                     )}
                   </div>
                 </div>
                 {c.status === 'active' && (
-                  <button className="btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => cancelConnection(c.id)}>
-                    Cancel connection
+                  <button
+                    className="btn-ghost"
+                    style={{ alignSelf: 'flex-start' }}
+                    disabled={busy}
+                    onClick={() => run(c.id, () => cancelConnection(c.id), 'Connection cancelled.', 'Could not cancel that connection. Try again.')}
+                  >
+                    <Ban size={15} /> Cancel connection
                   </button>
                 )}
               </div>

@@ -29,8 +29,7 @@ logger = logging.getLogger(__name__)
 MESSAGE_EMAIL_COOLDOWN_SECONDS = 15 * 60
 
 REQUEST_TYPE_PHRASES = {
-    "networking": "professional networking",
-    "mentorship": "mentorship",
+    "connect": "connecting",
     "referral": "a referral conversation",
 }
 

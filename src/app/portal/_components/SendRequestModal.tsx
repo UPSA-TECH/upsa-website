@@ -5,6 +5,7 @@ import type { Member, RequestType } from '../_lib/types';
 import { REQUEST_TYPE_LABELS } from '../_lib/types';
 import { usePortalData } from '../_lib/PortalDataProvider';
 import { ApiError } from '../_lib/api';
+import { useToast } from './Toast';
 
 export default function SendRequestModal({
   professional,
@@ -16,15 +17,14 @@ export default function SendRequestModal({
   onSent: () => void;
 }) {
   const { sendRequest } = usePortalData();
+  const toast = useToast();
   const [sending, setSending] = useState(false);
 
-  const availableTypes: RequestType[] = [
-    ...(professional.availability.mentor ? (['mentorship'] as const) : []),
-    ...(professional.availability.networking ? (['networking'] as const) : []),
-    ...(professional.availability.referrals ? (['referral'] as const) : []),
-  ];
+  // Everyone verified can be sent a general "connect" request; referral is a
+  // bigger, more specific ask, so it's only offered when the person opted in.
+  const availableTypes: RequestType[] = ['connect', ...(professional.referralsAvailable ? (['referral'] as const) : [])];
 
-  const [requestType, setRequestType] = useState<RequestType>(availableTypes[0] ?? 'networking');
+  const [requestType, setRequestType] = useState<RequestType>('connect');
   const [message, setMessage] = useState(
     `Hi ${professional.name.split(' ')[0]}, I'd love to connect and learn more about your path. Would you be open to a short conversation?`
   );
@@ -45,9 +45,10 @@ export default function SendRequestModal({
     setSending(true);
     try {
       await sendRequest(professional.id, requestType, message.trim());
+      toast(`Request sent to ${professional.name.split(' ')[0]}.`, 'success');
       onSent();
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not send that request. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not send that request. Try again.', 'error');
       setSending(false);
     }
   }
@@ -59,33 +60,28 @@ export default function SendRequestModal({
           <h2 id="send-request-title">Send a request to {professional.name.split(' ')[0]}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">&times;</button>
         </div>
-        <p className="modal-sub">
-          {professional.availability.mentor && professional.availability.networking
-            ? 'Open to mentorship and networking conversations.'
-            : professional.availability.mentor
-            ? 'Open to mentorship conversations.'
-            : 'Open to networking conversations.'}
-          {' '}A short, specific message gets the best response.
-        </p>
+        <p className="modal-sub">A short, specific message gets the best response.</p>
 
         <form onSubmit={handleSubmit}>
-          <fieldset className="field type-choice-field">
-            <legend>Reason for reaching out</legend>
-            <div className="type-choice-group">
-              {availableTypes.map(type => (
-                <label key={type} className={`type-choice${requestType === type ? ' active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="request-type"
-                    value={type}
-                    checked={requestType === type}
-                    onChange={() => setRequestType(type)}
-                  />
-                  {REQUEST_TYPE_LABELS[type]}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {availableTypes.length > 1 && (
+            <fieldset className="field type-choice-field">
+              <legend>Reason for reaching out</legend>
+              <div className="type-choice-group">
+                {availableTypes.map(type => (
+                  <label key={type} className={`type-choice${requestType === type ? ' active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="request-type"
+                      value={type}
+                      checked={requestType === type}
+                      onChange={() => setRequestType(type)}
+                    />
+                    {REQUEST_TYPE_LABELS[type]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           <div className="field">
             <label htmlFor="req-message">Your message</label>

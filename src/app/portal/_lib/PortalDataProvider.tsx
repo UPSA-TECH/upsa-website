@@ -23,8 +23,6 @@ function isPublicPortalRoute(pathname: string | null) {
 
 // --- raw API response shapes ---------------------------------------------
 
-type ApiAvailability = { mentor: boolean; networking: boolean; referrals: boolean };
-
 type ApiProfile = {
   id: number;
   name: string;
@@ -37,9 +35,8 @@ type ApiProfile = {
   location: string;
   bio: string;
   skills: string[];
-  availability: ApiAvailability;
+  referralsAvailable: boolean;
   isProfessional: boolean;
-  professionalRequested: boolean;
   deactivated: boolean;
   emailNotifications?: boolean;
   avatarUrl: string | null;
@@ -71,6 +68,10 @@ type ApiMessage = {
   senderId: number;
   text: string;
   createdAt: string;
+  attachment: 'resume' | '';
+  resumeId: number | null;
+  resumeFileName: string | null;
+  resumeSizeLabel: string | null;
 };
 
 type ApiResume = {
@@ -138,9 +139,8 @@ function toMember(p: ApiProfile): Member {
     location: p.location || undefined,
     bio: p.bio || '',
     skills: p.skills ?? [],
-    availability: p.availability,
+    referralsAvailable: p.referralsAvailable,
     isProfessional: p.isProfessional,
-    professionalRequested: p.professionalRequested,
     visible: !p.deactivated,
     emailNotifications: p.emailNotifications ?? true,
   };
@@ -178,6 +178,10 @@ function toChatMessage(m: ApiMessage): ChatMessage {
     senderId: String(m.senderId),
     text: m.text,
     time: timeAgo(m.createdAt),
+    attachment: m.attachment,
+    resumeId: m.resumeId !== null ? String(m.resumeId) : null,
+    resumeFileName: m.resumeFileName,
+    resumeSizeLabel: m.resumeSizeLabel,
   };
 }
 
@@ -205,9 +209,8 @@ const EMPTY_MEMBER: Member = {
   university: '',
   bio: '',
   skills: [],
-  availability: { mentor: false, networking: false, referrals: false },
+  referralsAvailable: false,
   isProfessional: false,
-  professionalRequested: false,
   visible: false,
   emailNotifications: true,
 };
@@ -235,15 +238,13 @@ export type ProfessionalFilters = {
   company?: string;
   industry?: string;
   university?: string;
-  mentor?: boolean;
-  networking?: boolean;
+  referralsAvailable?: boolean;
 };
 
 export type ProfessionalPage = { members: Member[]; hasMore: boolean };
 
-// isProfessional is deliberately absent: it's the verified flag, and only an
-// admin can set it (the backend ignores it even if sent). A member can only
-// ask to be reviewed, with professionalRequested.
+// isProfessional is self-serve now - the backend still enforces that company
+// and role are filled in before it'll accept isProfessional: true.
 type ProfileUpdate = Partial<{
   name: string;
   headline: string;
@@ -255,8 +256,8 @@ type ProfileUpdate = Partial<{
   location: string;
   bio: string;
   skills: string[];
-  availability: Member['availability'];
-  professionalRequested: boolean;
+  referralsAvailable: boolean;
+  isProfessional: boolean;
   deactivated: boolean;
   emailNotifications: boolean;
 }>;
@@ -277,7 +278,9 @@ type PortalContextValue = {
   uploadAvatar: (file: File) => Promise<void>;
   removeAvatar: () => Promise<void>;
   downloadResume: () => Promise<void>;
+  downloadResumeById: (resumeId: string, fileName: string) => Promise<void>;
   shareResumeWithConnection: (connectionId: string) => Promise<void>;
+  reportMember: (memberId: string, reason?: string) => Promise<void>;
   setDeactivated: (value: boolean) => Promise<void>;
   loadMember: (id: string) => Promise<Member | null>;
   loadProfessionals: (filters: ProfessionalFilters, page?: number) => Promise<ProfessionalPage>;
@@ -461,8 +464,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
       if (filters.company) params.set('company', filters.company);
       if (filters.industry) params.set('industry', filters.industry);
       if (filters.university) params.set('university', filters.university);
-      if (filters.mentor) params.set('availability.mentor', 'true');
-      if (filters.networking) params.set('availability.networking', 'true');
+      if (filters.referralsAvailable) params.set('referralsAvailable', 'true');
 
       const data = await call<Paginated<ApiProfile>>(`/api/professionals/?${params.toString()}`);
       const list = resultsOf(data).map(toMember);
@@ -626,26 +628,50 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, members: { ...prev.members, [member.id]: member } }));
   }, [call]);
 
+  const downloadResumeById = useCallback(
+    async (resumeId: string, fileName: string) => {
+      const token = await getToken();
+      const blob = await apiDownload(`/api/resume/${resumeId}/download/`, token);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    [getToken]
+  );
+
   const downloadResume = useCallback(async () => {
     if (!state.resume) return;
-    const token = await getToken();
-    const blob = await apiDownload(`/api/resume/${state.resume.id}/download/`, token);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = state.resume.fileName;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [state.resume, getToken]);
+    await downloadResumeById(state.resume.id, state.resume.fileName);
+  }, [state.resume, downloadResumeById]);
 
   const shareResumeWithConnection = useCallback(
     async (connectionId: string) => {
-      await call<void>(`/api/connections/${connectionId}/share-resume/`, { method: 'POST' });
-      setState(prev =>
-        prev.resumeSharedWith.includes(connectionId)
-          ? prev
-          : { ...prev, resumeSharedWith: [...prev.resumeSharedWith, connectionId] }
-      );
+      const created = await call<ApiMessage>(`/api/connections/${connectionId}/share-resume/`, { method: 'POST' });
+      const message = toChatMessage(created);
+      setState(prev => ({
+        ...prev,
+        resumeSharedWith: prev.resumeSharedWith.includes(connectionId) ? prev.resumeSharedWith : [...prev.resumeSharedWith, connectionId],
+        // Only keep it if that thread's messages are already loaded - avoids
+        // showing one message floating alone in a conversation that hasn't
+        // been opened/fetched yet (loadMessages will bring the full history).
+        messages: prev.messages.some(m => m.connectionId === connectionId) ? [...prev.messages, message] : prev.messages,
+        connections: prev.connections.map(c =>
+          c.id === connectionId ? { ...c, lastMessage: { text: message.text, senderId: message.senderId, time: message.time } } : c
+        ),
+      }));
+    },
+    [call]
+  );
+
+  const reportMember = useCallback(
+    async (memberId: string, reason?: string) => {
+      await call<void>(`/api/members/${memberId}/report/`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason ?? '' }),
+      });
     },
     [call]
   );
@@ -664,9 +690,10 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
 
   if (!publicRoute && !ready) {
     return (
-      <div className="portal-guest">
-        <div className="portal-auth-wrap">
-          <p style={{ color: 'var(--ink-3)' }}>Loading your portal…</p>
+      <div className="portal-loading-screen">
+        <div className="portal-loading-mark">
+          <div className="portal-spinner" />
+          <span>Loading your portal…</span>
         </div>
       </div>
     );
@@ -688,9 +715,11 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     uploadResume,
     deleteResume,
     downloadResume,
+    downloadResumeById,
     uploadAvatar,
     removeAvatar,
     shareResumeWithConnection,
+    reportMember,
     setDeactivated,
     loadMember,
     loadProfessionals,

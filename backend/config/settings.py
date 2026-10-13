@@ -251,6 +251,7 @@ REST_FRAMEWORK = {
         "requests": "30/day",
         "messages": "60/min",
         "uploads": "20/hour",
+        "reports": "10/day",
     },
 }
 

@@ -51,14 +51,16 @@ company, role       strings (professionals)
 industry, location  strings
 bio                 string
 skills              array of strings
-availability        { mentor, networking, referrals }   booleans, all off by default
-isProfessional      read only. The verified flag that drives the "Mentor / Professional" tag
-                    and whether the member shows up in Discover. Only an admin sets this,
-                    in the Django admin panel - never through this API, so nobody can list
-                    themselves as verified without review.
-professionalRequested   boolean. A member sets this themselves, alongside company/role/
-                        industry/location, to ask an admin to review and verify them.
-                        Setting it does not make isProfessional true by itself.
+referralsAvailable  boolean, default false. The one visibility opt-in left - a verified
+                    professional is discoverable by default (see Discover below); this only
+                    controls whether "referral" is offered as a request reason and shown as
+                    a note on their profile.
+isProfessional      boolean, default false. Self-serve - a member sets this themselves to list
+                    in Discover. The backend rejects `isProfessional: true` with a 400 unless
+                    `company` and `role` are both non-blank (either already saved or sent in
+                    the same request). No admin review step: there's no reliable way to verify
+                    anyone's claimed employer anyway (same gap LinkedIn has). See "Reporting a
+                    profile" below for the reactive alternative.
 deactivated         boolean, hides the profile from Discover and from other members
 avatarUrl, hasAvatar   read only; the photo (see below)
 emailNotifications  boolean, default true. Only the owner ever sees this field.
@@ -67,8 +69,14 @@ emailNotifications  boolean, default true. Only the owner ever sees this field.
 | Method and path | Notes |
 | --- | --- |
 | `GET /api/members/me/` | Your profile. |
-| `PATCH /api/members/me/` | Partial update of any field above except `id`, `isProfessional`, `avatarUrl`, `hasAvatar` (sending `isProfessional` is silently ignored, not an error). If you send `availability`, send all three keys. |
+| `PATCH /api/members/me/` | Partial update of any field above except `id`, `avatarUrl`, `hasAvatar`. Setting `isProfessional: true` without `company`/`role` filled in returns 400. |
 | `GET /api/members/{id}/` | Someone else's profile. 404 if they are deactivated. Never includes email or resume, and omits `emailNotifications`. |
+
+### Reporting a profile
+
+`POST /api/members/{id}/report/` - any authenticated member, body `{reason}` (optional, max 300 characters). Returns 201, or 200 if you'd already reported that profile (a no-op, not an error - at most one report per reporter per profile). 400 if you try to report yourself. Throttled to 10/day per user.
+
+Once **3 distinct members** have reported the same profile, it's marked `flagged_for_review` in the Django admin (not exposed via this API) for an admin to look at. Reporting never auto-hides anyone from Discover by itself - an admin decides whether to deactivate the account after reviewing.
 
 **Profile photo.** JPG, PNG or WEBP, up to 5 MB.
 
@@ -83,23 +91,24 @@ The upload must be a real image (it is decoded and checked), no more than 25 mil
 
 `GET /api/professionals/`: paginated, 20 per page, ordered by name. Response is `{count, next, previous, results: [profile, ...]}`; `next` is `null` on the last page.
 
-Lists only members who are a professional, not deactivated, and have **mentor or networking turned on**.
+Lists only members who are **a verified professional and not deactivated** - that's the only gate. There's no separate visibility toggle; being verified is what makes someone discoverable.
 
 | Query parameter | Effect |
 | --- | --- |
 | `page` | Page number, default 1 |
 | `search` | Case-insensitive match on name, headline, role, company or skills |
 | `company`, `industry`, `university` | Case-insensitive partial match |
-| `availability.mentor=true` | Only people open to mentoring |
-| `availability.networking=true` | Only people open to networking |
+| `referralsAvailable=true` | Only people open to referral conversations |
 
 ## Connection requests
 
 ```text
 id, fromId, toId, requestType, message, status, createdAt
-requestType   networking | mentorship | referral
+requestType   connect | referral
 status        pending | accepted | declined | cancelled
 ```
+
+`connect` is a general "let's talk" request, available for any verified professional. `referral` is only offered when the recipient's `referralsAvailable` is true - it's a bigger, more specific ask (being referred for a job), not a general-purpose category like the old `networking`/`mentorship` split.
 
 Requests never expire. They stay pending until accepted, declined or cancelled.
 
@@ -130,8 +139,11 @@ lastMessage   { text (first 140 characters), senderId, createdAt } or null
 ## Messages
 
 ```text
-id, connectionId, senderId, text, createdAt
+id, connectionId, senderId, text, createdAt, attachment, resumeId, resumeFileName, resumeSizeLabel
+attachment   "" | "resume"   read only - set internally, never by a client write
 ```
+
+A resume share is a real message in the conversation (see "Resume" below), not a separate side channel - both members see it in the thread, in order, like any other message. `attachment`/`resumeId`/`resumeFileName`/`resumeSizeLabel` are read-only on every message; sending them in a `POST` is silently ignored (they're not writable fields), so a client can't forge an attachment message. `resumeId` is `null` and the `resume*` fields are `null` on an ordinary text message, and also go `null` if the shared resume is later replaced (the message stays, it just can no longer be downloaded).
 
 | Method and path | Notes |
 | --- | --- |
@@ -159,7 +171,7 @@ id, fileName, sizeLabel, uploadedAt, sharedWith [connection ids]
 | `GET /api/resume/` | Yours, or `null` if none. |
 | `POST /api/resume/` | Multipart form, field `file`. Returns 201. Replaces an existing resume (old file deleted). |
 | `DELETE /api/resume/` | Returns 204. The file is deleted. |
-| `POST /api/connections/{id}/share-resume/` | Grants that one connection access. Returns 204. |
+| `POST /api/connections/{id}/share-resume/` | Grants that one connection access, and posts it as a message in that conversation (see "Messages" above). Returns 201 and the new message. |
 | `GET /api/resume/{id}/download/` | The file itself, streamed. 404 unless you own it or a connection you belong to has been granted it. |
 
 ## Emails

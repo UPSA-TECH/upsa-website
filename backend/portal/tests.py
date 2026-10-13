@@ -38,55 +38,90 @@ class PortalApiTests(APITestCase):
 
         res = self.client.patch(
             reverse("my-profile"),
-            {"bio": "Backend curious junior", "availability": {"mentor": False, "networking": True, "referrals": False}},
+            {"bio": "Backend curious junior", "referralsAvailable": True},
             format="json",
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data["bio"], "Backend curious junior")
-        self.assertEqual(res.data["availability"], {"mentor": False, "networking": True, "referrals": False})
+        self.assertEqual(res.data["referralsAvailable"], True)
 
-    def test_member_cannot_set_isProfessional_through_the_api(self):
-        # This is the actual verification gate - it must only ever change
-        # through the admin panel, never a member's own request.
+    def test_cannot_list_yourself_without_company_and_role(self):
         self.as_(self.student)
         res = self.client.patch(reverse("my-profile"), {"isProfessional": True}, format="json")
-        self.assertEqual(res.status_code, 200)
-        self.assertFalse(res.data["isProfessional"])
+        self.assertEqual(res.status_code, 400)
         self.assertFalse(Profile.objects.get(user=self.student).is_professional)
 
-    def test_member_can_request_to_be_listed_as_a_professional(self):
+        # half-filled still isn't enough
+        res = self.client.patch(reverse("my-profile"), {"company": "Microsoft", "isProfessional": True}, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(Profile.objects.get(user=self.student).is_professional)
+
+    def test_member_can_self_serve_list_once_company_and_role_are_filled_in(self):
         self.as_(self.student)
         res = self.client.patch(
             reverse("my-profile"),
-            {"company": "Microsoft", "role": "SWE", "industry": "Technology", "location": "Seattle, WA", "professionalRequested": True},
+            {"company": "Microsoft", "role": "SWE", "industry": "Technology", "location": "Seattle, WA", "isProfessional": True},
             format="json",
         )
         self.assertEqual(res.status_code, 200)
-        self.assertTrue(res.data["professionalRequested"])
-        self.assertFalse(res.data["isProfessional"])  # still not verified
+        self.assertTrue(res.data["isProfessional"])
 
         profile = Profile.objects.get(user=self.student)
-        self.assertTrue(profile.professional_requested)
-        self.assertIsNotNone(profile.professional_requested_at)
+        self.assertTrue(profile.is_professional)
         self.assertEqual(profile.company, "Microsoft")
 
-        # discover stays empty until an admin actually verifies them
-        self.as_(self.mentor)
-        self.assertEqual(self.client.get(reverse("professionals")).data["results"], [])
-
-    def test_only_an_admin_approving_in_the_database_makes_them_discoverable(self):
-        self.as_(self.student)
-        self.client.patch(
-            reverse("my-profile"),
-            {"professionalRequested": True, "availability": {"mentor": True, "networking": False, "referrals": False}},
-            format="json",
-        )
-        # the equivalent of an admin ticking "is professional" in the admin panel
-        Profile.objects.filter(user=self.student).update(is_professional=True)
-
+        # no admin step needed - they're discoverable immediately
         self.as_(self.mentor)
         ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
         self.assertIn(self.student.id, ids)
+
+    def test_member_can_unlist_themselves(self):
+        self.as_(self.student)
+        self.client.patch(
+            reverse("my-profile"),
+            {"company": "Microsoft", "role": "SWE", "isProfessional": True},
+            format="json",
+        )
+        res = self.client.patch(reverse("my-profile"), {"isProfessional": False}, format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data["isProfessional"])
+
+        self.as_(self.mentor)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertNotIn(self.student.id, ids)
+
+    # --- reporting -----------------------------------------------------
+
+    def test_reporting_a_profile(self):
+        self.as_(self.mentor)
+        self.client.get(reverse("my-profile"))  # lazily creates their profile row, same as real usage
+        self.as_(self.student)
+        res = self.client.post(reverse("member-report", args=[self.mentor.id]), {"reason": "seems fake"}, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertFalse(Profile.objects.get(user=self.mentor).flagged_for_review)  # just 1 report so far
+
+    def test_cannot_report_yourself(self):
+        self.as_(self.student)
+        res = self.client.post(reverse("member-report", args=[self.student.id]), format="json")
+        self.assertEqual(res.status_code, 400)
+
+    def test_reporting_the_same_profile_twice_is_a_no_op(self):
+        self.as_(self.student)
+        self.client.post(reverse("member-report", args=[self.mentor.id]), format="json")
+        res = self.client.post(reverse("member-report", args=[self.mentor.id]), format="json")
+        self.assertEqual(res.status_code, 200)
+        from .models import ProfileReport
+
+        self.assertEqual(ProfileReport.objects.filter(reported=self.mentor).count(), 1)
+
+    def test_three_distinct_reports_flags_the_profile(self):
+        self.as_(self.mentor)
+        self.client.get(reverse("my-profile"))  # lazily creates their profile row, same as real usage
+        reporters = [User.objects.create(username=f"clerk:reporter{i}") for i in range(3)]
+        for reporter in reporters:
+            self.as_(reporter)
+            self.client.post(reverse("member-report", args=[self.mentor.id]), format="json")
+        self.assertTrue(Profile.objects.get(user=self.mentor).flagged_for_review)
 
     def test_avatar_upload_validation(self):
         self.as_(self.student)
@@ -121,30 +156,60 @@ class PortalApiTests(APITestCase):
 
     # --- discover ----------------------------------------------------------
 
-    def test_discover_only_shows_opted_in_professionals(self):
+    def test_discover_shows_any_self_listed_professional_regardless_of_referrals_toggle(self):
+        # Being discoverable no longer needs its own opt-in toggle - anyone
+        # who's self-listed (company + role + isProfessional) shows up.
+        # referralsAvailable only controls whether "referral" is offered as a
+        # request reason.
         self.as_(self.mentor)
         self.client.patch(
             reverse("my-profile"),
-            {"company": "Microsoft", "availability": {"mentor": True, "networking": False, "referrals": False}},
+            {"company": "Microsoft", "role": "PM", "referralsAvailable": True, "isProfessional": True},
             format="json",
         )
-        Profile.objects.filter(user=self.mentor).update(is_professional=True)  # the admin's review step
 
-        hidden = User.objects.create(username="clerk:hidden-pro")
-        self.as_(hidden)
+        no_referrals = User.objects.create(username="clerk:no-referrals-pro")
+        self.as_(no_referrals)
         self.client.patch(
             reverse("my-profile"),
-            {"availability": {"mentor": False, "networking": False, "referrals": False}},
+            {"company": "Apple", "role": "Designer", "referralsAvailable": False, "isProfessional": True},
             format="json",
         )
-        Profile.objects.filter(user=hidden).update(is_professional=True)
+
+        unlisted = User.objects.create(username="clerk:unlisted")
+        self.as_(unlisted)
+        self.client.patch(reverse("my-profile"), {"referralsAvailable": True}, format="json")
+        # never set isProfessional - stays hidden
 
         self.as_(self.student)
         res = self.client.get(reverse("professionals"))
         self.assertEqual(res.status_code, 200)
         ids = [m["id"] for m in res.data["results"]]
         self.assertIn(self.mentor.id, ids)
-        self.assertNotIn(hidden.id, ids)
+        self.assertIn(no_referrals.id, ids)
+        self.assertNotIn(unlisted.id, ids)
+
+    def test_discover_can_filter_to_referrals_only(self):
+        self.as_(self.mentor)
+        self.client.patch(
+            reverse("my-profile"),
+            {"company": "Microsoft", "role": "PM", "referralsAvailable": True, "isProfessional": True},
+            format="json",
+        )
+
+        no_referrals = User.objects.create(username="clerk:no-referrals-pro2")
+        self.as_(no_referrals)
+        self.client.patch(
+            reverse("my-profile"),
+            {"company": "Apple", "role": "Designer", "referralsAvailable": False, "isProfessional": True},
+            format="json",
+        )
+
+        self.as_(self.student)
+        res = self.client.get(reverse("professionals"), {"referralsAvailable": "true"})
+        ids = [m["id"] for m in res.data["results"]]
+        self.assertIn(self.mentor.id, ids)
+        self.assertNotIn(no_referrals.id, ids)
 
     def test_discover_search_matches_name_and_skills(self):
         self.as_(self.mentor)
@@ -152,12 +217,13 @@ class PortalApiTests(APITestCase):
             reverse("my-profile"),
             {
                 "name": "Mentor Mia",
+                "company": "Microsoft",
+                "role": "PM",
                 "skills": ["Distributed Systems", "Go"],
-                "availability": {"mentor": True, "networking": False, "referrals": False},
+                "isProfessional": True,
             },
             format="json",
         )
-        Profile.objects.filter(user=self.mentor).update(is_professional=True)
         self.as_(self.student)
 
         def found(term):
@@ -174,10 +240,9 @@ class PortalApiTests(APITestCase):
             self.as_(pro)
             self.client.patch(
                 reverse("my-profile"),
-                {"name": f"Pro {i:02d}", "availability": {"mentor": True, "networking": False, "referrals": False}},
+                {"name": f"Pro {i:02d}", "company": "Co", "role": "Role", "isProfessional": True},
                 format="json",
             )
-            Profile.objects.filter(user=pro).update(is_professional=True)
         self.as_(self.student)
         page1 = self.client.get(reverse("professionals"))
         self.assertEqual(len(page1.data["results"]), 20)
@@ -192,7 +257,7 @@ class PortalApiTests(APITestCase):
         self.as_(self.student)
         res = self.client.post(
             reverse("requests"),
-            {"toId": self.mentor.id, "requestType": "mentorship", "message": "hi!"},
+            {"toId": self.mentor.id, "requestType": "connect", "message": "hi!"},
             format="json",
         )
         self.assertEqual(res.status_code, 201)
@@ -201,7 +266,7 @@ class PortalApiTests(APITestCase):
         # can't open a second request while one's already pending
         dupe = self.client.post(
             reverse("requests"),
-            {"toId": self.mentor.id, "requestType": "networking", "message": "again"},
+            {"toId": self.mentor.id, "requestType": "connect", "message": "again"},
             format="json",
         )
         self.assertEqual(dupe.status_code, 400)
@@ -256,7 +321,7 @@ class PortalApiTests(APITestCase):
         self.assertEqual(res.data["fileName"], "resume.pdf")
 
         # not shared yet, mentor can't get it
-        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="mentorship")
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
         connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
         resume_id = Resume.objects.get(user=self.student).id
 
@@ -265,11 +330,45 @@ class PortalApiTests(APITestCase):
         self.assertEqual(denied.status_code, 404)
 
         self.as_(self.student)
-        self.client.post(reverse("connection-share-resume", args=[connection.id]))
+        share = self.client.post(reverse("connection-share-resume", args=[connection.id]))
+        self.assertEqual(share.status_code, 201)
+        self.assertEqual(share.data["attachment"], "resume")
+        self.assertEqual(share.data["resumeId"], resume_id)
+        self.assertEqual(share.data["resumeFileName"], "resume.pdf")
 
         self.as_(self.mentor)
         allowed = self.client.get(reverse("resume-download", args=[resume_id]))
         self.assertEqual(allowed.status_code, 200)
+
+        # it's a real message both sides see in the conversation, not a side channel
+        thread = self.client.get(reverse("connection-messages", args=[connection.id]))
+        self.assertEqual(len(thread.data), 1)
+        self.assertEqual(thread.data[0]["attachment"], "resume")
+        self.assertEqual(thread.data[0]["resumeId"], resume_id)
+
+        conn_list = self.client.get(reverse("connections")).data
+        self.assertEqual(conn_list[0]["lastMessage"]["text"], "Shared a resume")
+
+    def test_a_plain_message_has_no_attachment(self):
+        self.as_(self.student)
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
+        res = self.client.post(reverse("connection-messages", args=[connection.id]), {"text": "hi there"}, format="json")
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data["attachment"], "")
+        self.assertIsNone(res.data["resumeId"])
+
+    def test_a_message_cannot_fake_a_resume_attachment(self):
+        self.as_(self.student)
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
+        res = self.client.post(
+            reverse("connection-messages", args=[connection.id]),
+            {"text": "hi", "attachment": "resume", "resumeId": 999},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data["attachment"], "")  # read-only fields, silently ignored on write
 
 
 def _fake_file(content, name, content_type):
@@ -392,7 +491,7 @@ class RateLimitTests(APITestCase):
 
         def send(target):
             return self.client.post(
-                reverse("requests"), {"toId": target.id, "requestType": "networking", "message": "hi"}, format="json"
+                reverse("requests"), {"toId": target.id, "requestType": "connect", "message": "hi"}, format="json"
             )
 
         self.assertEqual(send(targets[0]).status_code, 201)
@@ -403,7 +502,7 @@ class RateLimitTests(APITestCase):
 
     def test_sending_messages_is_limited_but_the_refresh_is_not(self):
         other = User.objects.create(username="clerk:friend")
-        req = ConnectionRequest.objects.create(from_user=self.user, to_user=other, request_type="networking")
+        req = ConnectionRequest.objects.create(from_user=self.user, to_user=other, request_type="connect")
         connection = Connection.objects.create(request=req, member_a=self.user, member_b=other)
         url = reverse("connection-messages", args=[connection.id])
 
@@ -415,7 +514,7 @@ class RateLimitTests(APITestCase):
 
     def test_one_users_limit_does_not_affect_another(self):
         first, second = User.objects.create(username="clerk:t1"), User.objects.create(username="clerk:t2")
-        body = {"toId": first.id, "requestType": "networking", "message": "hi"}
+        body = {"toId": first.id, "requestType": "connect", "message": "hi"}
         self.client.post(reverse("requests"), body, format="json")
         self.client.post(reverse("requests"), {**body, "toId": second.id}, format="json")
         self.assertEqual(self.client.post(reverse("requests"), body, format="json").status_code, 429)
@@ -447,11 +546,11 @@ class NotificationTests(APITestCase):
         self.client.force_authenticate(user=self.sender)
         with self.captureOnCommitCallbacks(execute=True):
             return self.client.post(
-                reverse("requests"), {"toId": self.recipient.id, "requestType": "mentorship", "message": message}, format="json"
+                reverse("requests"), {"toId": self.recipient.id, "requestType": "connect", "message": message}, format="json"
             )
 
     def connect(self):
-        req = ConnectionRequest.objects.create(from_user=self.sender, to_user=self.recipient, request_type="networking", status="accepted")
+        req = ConnectionRequest.objects.create(from_user=self.sender, to_user=self.recipient, request_type="connect", status="accepted")
         return Connection.objects.create(request=req, member_a=self.sender, member_b=self.recipient)
 
     def test_a_new_request_emails_the_recipient_without_leaking_the_message(self):
@@ -535,7 +634,7 @@ class ScalingTests(APITestCase):
 
     def connect(self, other=None):
         other = other or self.friend
-        req = ConnectionRequest.objects.create(from_user=self.me, to_user=other, request_type="networking", status="accepted")
+        req = ConnectionRequest.objects.create(from_user=self.me, to_user=other, request_type="connect", status="accepted")
         return Connection.objects.create(request=req, member_a=self.me, member_b=other)
 
     def image_upload(self, size, mode="RGB", name="photo.png", content_type="image/png"):
@@ -562,7 +661,7 @@ class ScalingTests(APITestCase):
         self.assertEqual(empty, "0")
 
         self.client.force_authenticate(user=self.friend)
-        self.client.post(reverse("requests"), {"toId": self.me.id, "requestType": "networking", "message": "hi"}, format="json")
+        self.client.post(reverse("requests"), {"toId": self.me.id, "requestType": "connect", "message": "hi"}, format="json")
         self.client.force_authenticate(user=self.me)
         after_request = self.client.get(reverse("sync")).data["version"]
         self.assertNotEqual(after_request, empty)
@@ -583,7 +682,7 @@ class ScalingTests(APITestCase):
     def test_sync_ignores_other_peoples_activity(self):
         a, b = User.objects.create(username="clerk:a"), User.objects.create(username="clerk:b")
         before = self.client.get(reverse("sync")).data["version"]
-        req = ConnectionRequest.objects.create(from_user=a, to_user=b, request_type="networking")
+        req = ConnectionRequest.objects.create(from_user=a, to_user=b, request_type="connect")
         Connection.objects.create(request=req, member_a=a, member_b=b)
         self.assertEqual(self.client.get(reverse("sync")).data["version"], before)
 

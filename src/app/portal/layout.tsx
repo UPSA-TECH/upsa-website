@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { PortalDataProvider } from './_lib/PortalDataProvider';
+import { ToastProvider } from './_components/Toast';
 import '@/styles/portal.css';
 
 export const metadata: Metadata = {
@@ -9,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function PortalRootLayout({ children }: { children: React.ReactNode }) {
-  return <PortalDataProvider>{children}</PortalDataProvider>;
+  return (
+    <ToastProvider>
+      <PortalDataProvider>{children}</PortalDataProvider>
+    </ToastProvider>
+  );
 }

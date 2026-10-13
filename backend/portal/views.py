@@ -12,8 +12,11 @@ from rest_framework.response import Response
 from PIL import Image, ImageOps, UnidentifiedImageError
 from rest_framework.views import APIView
 
+from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
+
 from . import notifications
-from .models import Connection, ConnectionRequest, Message, Profile, Resume
+from .models import REPORTS_TO_FLAG, Connection, ConnectionRequest, Message, Profile, ProfileReport, Resume
 from .serializers import (
     ALLOWED_AVATAR_CONTENT_TYPES,
     ALLOWED_RESUME_CONTENT_TYPES,
@@ -54,6 +57,33 @@ class MemberProfileView(generics.RetrieveAPIView):
     queryset = Profile.objects.filter(deactivated=False)
     lookup_url_kwarg = "user_id"
     lookup_field = "user_id"
+
+
+@api_view(["POST"])
+def report_member(request, user_id):
+    if user_id == request.user.id:
+        raise ValidationError("You can't report yourself.")
+    reported_user = get_object_or_404(get_user_model(), pk=user_id)
+    reason = (request.data.get("reason") or "")[:300]
+
+    try:
+        with transaction.atomic():
+            ProfileReport.objects.create(reporter=request.user, reported=reported_user, reason=reason)
+    except IntegrityError:
+        # Already reported this profile - not an error, just a no-op.
+        return Response(status=status.HTTP_200_OK)
+
+    report_count = ProfileReport.objects.filter(reported=reported_user).count()
+    if report_count >= REPORTS_TO_FLAG:
+        profile, _ = Profile.objects.get_or_create(user=reported_user)
+        if not profile.flagged_for_review:
+            profile.flagged_for_review = True
+            profile.save(update_fields=["flagged_for_review"])
+
+    return Response(status=status.HTTP_201_CREATED)
+
+
+report_member.cls.throttle_scope = "reports"
 
 
 AVATAR_SIZE = 256
@@ -117,9 +147,10 @@ class ProfessionalListView(generics.ListAPIView):
     serializer_class = ProfileSerializer
 
     def get_queryset(self):
-        qs = Profile.objects.filter(is_professional=True, deactivated=False).filter(
-            Q(mentor_available=True) | Q(networking_available=True)
-        )
+        # A verified professional is discoverable by default - no separate
+        # opt-in toggle to find, request, cancel, etc. (see Profile.referrals_available
+        # docstring for the one opt-in that remains).
+        qs = Profile.objects.filter(is_professional=True, deactivated=False)
         params = self.request.query_params
         if search := params.get("search"):
             qs = qs.filter(
@@ -135,10 +166,8 @@ class ProfessionalListView(generics.ListAPIView):
             qs = qs.filter(industry__icontains=industry)
         if university := params.get("university"):
             qs = qs.filter(university__icontains=university)
-        if params.get("availability.mentor") == "true":
-            qs = qs.filter(mentor_available=True)
-        if params.get("availability.networking") == "true":
-            qs = qs.filter(networking_available=True)
+        if params.get("referralsAvailable") == "true":
+            qs = qs.filter(referrals_available=True)
         return qs.order_by("name")
 
 
@@ -248,6 +277,21 @@ def sync(request):
 MESSAGES_PER_THREAD = 200
 
 
+def _record_message(connection, sender, text, **extra):
+    """Create a message, update the connection's cached preview, and notify
+    the other member. Shared by plain text messages and a resume share
+    (which is also just a message, with an attachment)."""
+    message = Message.objects.create(connection=connection, sender=sender, text=text, **extra)
+    Connection.objects.filter(pk=connection.pk).update(
+        last_message_at=message.created_at,
+        last_message_text=message.text[:140],
+        last_message_sender_id=message.sender_id,
+        updated_at=timezone.now(),
+    )
+    notifications.message_received(message)
+    return message
+
+
 class ConnectionMessagesView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     pagination_class = None
@@ -267,14 +311,8 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
         connection = self._connection()
         if connection.status == "cancelled":
             raise ValidationError("This connection is cancelled, no new messages.")
-        message = serializer.save(connection=connection, sender=self.request.user)
-        Connection.objects.filter(pk=connection.pk).update(
-            last_message_at=message.created_at,
-            last_message_text=message.text[:140],
-            last_message_sender_id=message.sender_id,
-            updated_at=timezone.now(),
-        )
-        notifications.message_received(message)
+        message = _record_message(connection, self.request.user, serializer.validated_data["text"])
+        serializer.instance = message
 
 
 # --- Resume -------------------------------------------------------------
@@ -311,7 +349,8 @@ def share_resume(request, pk):
     connection = _connection_or_404(request, pk)
     resume = get_object_or_404(Resume, user=request.user)
     resume.shared_with.add(connection)
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    message = _record_message(connection, request.user, "Shared a resume", attachment="resume", resume=resume)
+    return Response(MessageSerializer(message).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])

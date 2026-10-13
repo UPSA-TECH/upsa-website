@@ -5,9 +5,12 @@ import { PLACEHOLDER_NAME, usePortalData } from '../../_lib/PortalDataProvider';
 import { ApiError } from '../../_lib/api';
 import Avatar from '../../_components/Avatar';
 import RoleTag from '../../_components/RoleTag';
+import { useToast } from '../../_components/Toast';
+import { Pencil, Camera, FileText, Download, Upload, Trash2, UploadCloud } from 'lucide-react';
 
 export default function ProfilePage() {
   const { currentUser, state, updateProfile, uploadResume, deleteResume, downloadResume, uploadAvatar, removeAvatar } = usePortalData();
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -24,7 +27,7 @@ export default function ProfilePage() {
   const [role, setRole] = useState(currentUser.role ?? '');
   const [industry, setIndustry] = useState(currentUser.industry ?? '');
   const [location, setLocation] = useState(currentUser.location ?? '');
-  const [requestingReview, setRequestingReview] = useState(false);
+  const [listingBusy, setListingBusy] = useState(false);
 
   const hasProfessionalDetails = company.trim() && role.trim();
 
@@ -42,20 +45,34 @@ export default function ProfilePage() {
         industry,
         location,
       });
+      toast('Profile saved.', 'success');
       setEditing(false);
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not save your profile. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not save your profile. Try again.', 'error');
     }
   }
 
-  async function requestReview() {
-    setRequestingReview(true);
+  async function listMe() {
+    setListingBusy(true);
     try {
-      await updateProfile({ company, role, industry, location, professionalRequested: true });
+      await updateProfile({ company, role, industry, location, isProfessional: true });
+      toast("You're now listed in Discover.", 'success');
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not send that. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not list you. Try again.', 'error');
     } finally {
-      setRequestingReview(false);
+      setListingBusy(false);
+    }
+  }
+
+  async function unlistMe() {
+    setListingBusy(true);
+    try {
+      await updateProfile({ isProfessional: false });
+      toast('Removed from Discover.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update that. Try again.', 'error');
+    } finally {
+      setListingBusy(false);
     }
   }
 
@@ -63,20 +80,21 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      window.alert('Please upload a JPG, PNG, or WEBP image.');
+      toast('Please upload a JPG, PNG, or WEBP image.', 'error');
       e.target.value = '';
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      window.alert('Profile photos are limited to 5 MB.');
+      toast('Profile photos are limited to 5 MB.', 'error');
       e.target.value = '';
       return;
     }
     setPhotoBusy(true);
     try {
       await uploadAvatar(file);
+      toast('Photo updated.', 'success');
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not upload that photo. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not upload that photo. Try again.', 'error');
     } finally {
       setPhotoBusy(false);
       e.target.value = '';
@@ -87,8 +105,9 @@ export default function ProfilePage() {
     setPhotoBusy(true);
     try {
       await removeAvatar();
+      toast('Photo removed.', 'success');
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not remove your photo. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not remove your photo. Try again.', 'error');
     } finally {
       setPhotoBusy(false);
     }
@@ -99,18 +118,19 @@ export default function ProfilePage() {
     if (!file) return;
     const okType = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type);
     if (!okType) {
-      window.alert('Please upload a PDF, DOC, or DOCX file.');
+      toast('Please upload a PDF, DOC, or DOCX file.', 'error');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      window.alert('Resume files are limited to 5 MB.');
+      toast('Resume files are limited to 5 MB.', 'error');
       return;
     }
     setUploading(true);
     try {
       await uploadResume(file);
+      toast('Resume uploaded.', 'success');
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not upload that file. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not upload that file. Try again.', 'error');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -120,8 +140,9 @@ export default function ProfilePage() {
   async function handleDelete() {
     try {
       await deleteResume();
+      toast('Resume deleted.', 'success');
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not delete your resume. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not delete your resume. Try again.', 'error');
     }
   }
 
@@ -129,27 +150,32 @@ export default function ProfilePage() {
     try {
       await downloadResume();
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not download your resume. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not download your resume. Try again.', 'error');
     }
   }
 
   return (
     <>
-      <div className="portal-page-head-row" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 30, color: 'var(--ink)' }}>My Profile</h1>
-          <p style={{ marginTop: 6, fontSize: 14.5, color: 'var(--ink-3)' }}>This is what other members see when they view your profile.</p>
-        </div>
-        {!editing && <button className="btn-outline btn-sm" onClick={() => setEditing(true)}>Edit profile</button>}
-      </div>
-
       <div className="profile-head">
-        <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} imageUrl={currentUser.avatarUrl} size="lg" />
+        <Avatar
+          name={currentUser.name}
+          initials={currentUser.initials}
+          color={currentUser.avatarColor}
+          imageUrl={currentUser.avatarUrl}
+          size="lg"
+          verified={currentUser.isProfessional}
+        />
         <div>
-          <div style={{ marginBottom: 8 }}><RoleTag isProfessional={currentUser.isProfessional} professionalRequested={currentUser.professionalRequested} /></div>
+          <div style={{ marginBottom: 8 }}><RoleTag isProfessional={currentUser.isProfessional} /></div>
           <h1>{currentUser.name}</h1>
           <div className="sub">{currentUser.headline}</div>
+          <p className="profile-head-note">This is what other members see when they view your profile.</p>
         </div>
+        {!editing && (
+          <button className="btn-outline btn-sm profile-head-edit" onClick={() => setEditing(true)}>
+            <Pencil size={15} /> Edit profile
+          </button>
+        )}
       </div>
 
       {editing ? (
@@ -158,7 +184,12 @@ export default function ProfilePage() {
           <div className="field">
             <label>Profile photo</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} imageUrl={currentUser.avatarUrl} size="lg" />
+              <div className="avatar-edit-wrap">
+                <Avatar name={currentUser.name} initials={currentUser.initials} color={currentUser.avatarColor} imageUrl={currentUser.avatarUrl} size="lg" />
+                <button type="button" className="avatar-edit-btn" onClick={() => photoInputRef.current?.click()} disabled={photoBusy} aria-label="Change profile photo">
+                  <Camera size={16} />
+                </button>
+              </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" className="btn-outline btn-sm" onClick={() => photoInputRef.current?.click()} disabled={photoBusy}>
                   {photoBusy ? 'Working…' : currentUser.hasAvatar ? 'Replace photo' : 'Upload photo'}
@@ -205,8 +236,7 @@ export default function ProfilePage() {
 
           <h3 style={{ marginTop: 22 }}>Professional details</h3>
           <p className="hint" style={{ marginBottom: 14 }}>
-            Fill these in and request a review to be listed as a mentor/professional in Discover. An admin checks every
-            request before it goes live, so nobody can list themselves without review.
+            Fill these in to list yourself as a mentor/professional in Discover. You&apos;re listed immediately, no review wait.
           </p>
           <div className="field-row">
             <div className="field">
@@ -230,18 +260,21 @@ export default function ProfilePage() {
           </div>
 
           {currentUser.isProfessional ? (
-            <p className="hint" style={{ marginBottom: 14 }}>You&apos;re verified as a mentor/professional. Save changes below to update these details.</p>
-          ) : currentUser.professionalRequested ? (
-            <p className="hint" style={{ marginBottom: 14 }}>Review pending. An admin hasn&apos;t confirmed this yet.</p>
+            <div style={{ marginBottom: 14 }}>
+              <p className="hint" style={{ marginBottom: 8 }}>You&apos;re listed as a mentor/professional. Save changes below to update these details.</p>
+              <button type="button" className="btn-ghost" onClick={unlistMe} disabled={listingBusy}>
+                {listingBusy ? 'Working…' : 'Remove myself from Discover'}
+              </button>
+            </div>
           ) : (
             <div style={{ marginBottom: 14 }}>
               <button
                 type="button"
                 className="btn-outline btn-sm"
-                onClick={requestReview}
-                disabled={!hasProfessionalDetails || requestingReview}
+                onClick={listMe}
+                disabled={!hasProfessionalDetails || listingBusy}
               >
-                {requestingReview ? 'Sending…' : 'Request to be listed as a mentor/professional'}
+                {listingBusy ? 'Listing…' : 'List me as a mentor/professional'}
               </button>
               {!hasProfessionalDetails && <p className="hint" style={{ marginTop: 6 }}>Add a company and job title first.</p>}
             </div>
@@ -269,13 +302,14 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="detail-card">
-            <h3>Availability</h3>
+            <h3>Discoverability</h3>
             <div className="pf-card-avail">
-              {currentUser.availability.mentor && <span className="avail-pill mentor">Open to mentoring</span>}
-              {currentUser.availability.networking && <span className="avail-pill networking">Open to networking</span>}
-              {!currentUser.availability.mentor && !currentUser.availability.networking && (
-                <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>Not discoverable. Change this in Settings.</span>
+              {currentUser.isProfessional ? (
+                <span className="avail-pill referrals" style={{ background: 'var(--moss-soft)', color: 'var(--moss)' }}>Visible in Discover</span>
+              ) : (
+                <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>Not listed yet. List yourself as a mentor/professional above.</span>
               )}
+              {currentUser.referralsAvailable && <span className="avail-pill referrals">Open to referrals</span>}
             </div>
           </div>
         </div>
@@ -285,25 +319,29 @@ export default function ProfilePage() {
       <div className="detail-card">
         {state.resume ? (
           <div className="resume-file">
-            <div>
-              <div className="name">{state.resume.fileName}</div>
-              <div className="meta">{state.resume.sizeLabel} &middot; uploaded {state.resume.uploadedAt} &middot; private by default</div>
+            <div className="resume-file-info">
+              <span className="resume-file-icon"><FileText size={18} /></span>
+              <div>
+                <div className="name">{state.resume.fileName}</div>
+                <div className="meta">{state.resume.sizeLabel} &middot; uploaded {state.resume.uploadedAt} &middot; private by default</div>
+              </div>
             </div>
             <div className="resume-actions">
-              <button className="btn-outline btn-sm" onClick={handleDownload}>Download</button>
+              <button className="btn-outline btn-sm" onClick={handleDownload}><Download size={15} /> Download</button>
               <button className="btn-outline btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                {uploading ? 'Uploading…' : 'Replace'}
+                <Upload size={15} /> {uploading ? 'Uploading…' : 'Replace'}
               </button>
-              <button className="btn-ghost" onClick={handleDelete}>Delete</button>
+              <button className="btn-ghost" onClick={handleDelete}><Trash2 size={15} /> Delete</button>
             </div>
           </div>
         ) : (
           <div className="resume-drop">
+            <UploadCloud className="resume-drop-icon" aria-hidden="true" />
             <strong>No resume uploaded</strong>
             Kept private here. You choose who to share it with from your Connections.
             <div style={{ marginTop: 14 }}>
               <button className="btn-primary btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                {uploading ? 'Uploading…' : 'Upload resume'}
+                <Upload size={15} /> {uploading ? 'Uploading…' : 'Upload resume'}
               </button>
             </div>
           </div>
