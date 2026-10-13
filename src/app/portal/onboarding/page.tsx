@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { PLACEHOLDER_NAME, usePortalData } from '../_lib/PortalDataProvider';
+import { PLACEHOLDER_NAME, initialsFromName, usePortalData } from '../_lib/PortalDataProvider';
 import { ApiError } from '../_lib/api';
 import Avatar from '../_components/Avatar';
 import BrandMark from '../_components/BrandMark';
@@ -102,7 +102,7 @@ export default function OnboardingPage() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '10px 0 26px' }}>
                 <Avatar
                   name={name || 'You'}
-                  initials={currentUser.initials || 'U'}
+                  initials={initialsFromName(name)}
                   color={currentUser.avatarColor}
                   size="lg"
                   imageUrl={previewUrl ?? currentUser.avatarUrl}
