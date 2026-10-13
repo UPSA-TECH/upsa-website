@@ -122,14 +122,7 @@ export default function Nav({ settings }: { settings: SiteSettings }) {
         </div>
 
         <div className="nav-auth">
-          {!isLoaded ? null : !isSignedIn ? (
-            <Link href={settings.ctaHref} className="nav-cta" onClick={close}>{settings.ctaLabel} &rarr;</Link>
-          ) : (
-            <div className="nav-userbutton" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <Link href="/portal" onClick={close} className="nav-cta">Portal &rarr;</Link>
-              <UserButton />
-            </div>
-          )}
+          {isLoaded && isSignedIn && <UserButton />}
         </div>
 
         <button
@@ -180,14 +173,7 @@ export default function Nav({ settings }: { settings: SiteSettings }) {
         ))}
 
         <div className="mobile-auth" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
-          {!isLoaded ? null : !isSignedIn ? (
-            <Link href={settings.ctaHref} className="m-cta" onClick={close}>{settings.ctaLabel} &rarr;</Link>
-          ) : (
-            <>
-              <Link href="/portal" className="m-cta" onClick={close}>Portal &rarr;</Link>
-              <UserButton />
-            </>
-          )}
+          {isLoaded && isSignedIn && <UserButton />}
         </div>
       </div>
     </>

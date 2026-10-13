@@ -46,6 +46,7 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
           {settings.socialLinks.map(link => (
             <a href={link.href} key={link.href} target="_blank" rel="noopener">{link.label}</a>
           ))}
+          <Link href="/portal">Mentor Portal</Link>
         </div>
       </div>
     </footer>
