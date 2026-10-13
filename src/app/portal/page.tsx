@@ -44,7 +44,7 @@ export default function PortalLandingPage() {
               return (
                 <li key={s.title}>
                   <span className="portal-hero-step-num">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="portal-hero-step-icon"><Icon size={24} strokeWidth={1.8} /></span>
+                  <span className="portal-hero-step-icon"><Icon size={26} strokeWidth={2.2} /></span>
                   <div>
                     <strong>{s.title}</strong>
                     <span>{s.body}</span>
