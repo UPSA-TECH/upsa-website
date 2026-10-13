@@ -24,18 +24,22 @@ You can view and edit **Profiles, Connection requests, Connections, Messages, Re
 
 To create another admin: on the host's shell run `python manage.py createsuperuser`.
 
-## Approving a mentor or professional
+## Listing as a mentor/professional
 
-A member fills in their own company, role, industry and location in Edit Profile, then clicks **Request to be listed as a mentor/professional**. That does not make them discoverable by itself — it only flags them for review. The verified flag (`isProfessional`) that actually controls Discover can only be set by an admin, in the admin panel; the API rejects a member trying to set it on themselves (silently ignored, not an error), so nobody can list themselves without review.
+This is self-serve, there is no approval step. A member fills in their own company and role in Edit Profile, then clicks **List me as a mentor/professional** — they're discoverable immediately. There's no reliable way to verify anyone's claimed employer anyway (LinkedIn has the same gap), so a manual review step was only ever a speed bump, not a real check. A member can unlist themselves the same way, any time.
 
-To approve someone:
+Since there's no gatekeeper, the backstop is reactive instead: see **Reviewing reported profiles** below.
 
-1. Admin panel, **Portal, Profiles**. The list is sorted by request date, newest first, and you can filter by **Professional requested**.
-2. Open the member, check what they filled in under **Professional** (Company, Role, Industry, Location).
-3. Tick **Is professional**, then save.
-4. They'll show up in Discover once they also have **Open to mentoring** or **Open to networking** turned on in their own Settings — that part is up to them.
+You can still untick **Is professional** yourself in the admin panel if you need to remove someone from Discover directly (e.g. after reviewing a report) — that doesn't require the member's cooperation.
 
-Discover lists only verified professionals, so it stays empty until you approve your first few. A member can also be un-verified the same way (untick **Is professional**) — they can't undo that themselves either.
+## Reviewing reported profiles
+
+Any member can report a profile as fake or suspicious from that person's page. Once **3 distinct members** report the same profile, it's automatically marked **Flagged for review** in the admin panel — that's your signal to look at it.
+
+1. Admin panel, **Portal, Profiles**. Filter by **Flagged for review**, or sort — flagged profiles are ordered first.
+2. Admin panel, **Portal, Profile reports** shows every individual report, including the reporter, who they reported, and any reason given, newest first.
+3. If it's genuinely fake: untick **Is professional** to remove them from Discover, or tick **Deactivated** to hide the whole profile. Reporting itself never auto-hides anyone — that decision is always yours.
+4. Flags don't clear themselves. Once you've reviewed one, untick **Flagged for review** so it drops off the list.
 
 ## Moderating a member
 
@@ -95,7 +99,7 @@ Members are emailed when they receive a request, have one accepted, or get a mes
 | Resume download says not found | Correct behavior unless the requester is the owner or the resume was shared with a connection they belong to. |
 | No notification emails | `CLERK_SECRET_KEY` or `EMAIL_HOST` is unset (emails are then off), the from-address isn't allowed by the provider, or the member opted out. Check the backend log. |
 | "You're doing that too quickly" | A rate limit was hit. It clears on its own, or on a backend restart. |
-| Discover is empty | Nobody is a professional yet (see above), or none have turned on mentoring/networking, or they are deactivated. |
+| Discover is empty | Nobody has listed themselves as a professional yet (see above), or they're deactivated. |
 | Not sure what actually broke | If Sentry is set up (see deployment.md), check it first - it has the real stack trace. Not set up yet means errors are only in the host's logs. |
 | A member keeps landing on onboarding | Their profile has no name. Finishing onboarding fixes it. |
 | Portal works locally but not live | Compare environment variables against [deployment.md](deployment.md); `NEXT_PUBLIC_*` changes need a Netlify rebuild. |

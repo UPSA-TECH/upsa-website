@@ -2,17 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { UserSearch, Flag } from 'lucide-react';
 import { usePortalData } from '../../../_lib/PortalDataProvider';
+import { ApiError } from '../../../_lib/api';
 import Avatar from '../../../_components/Avatar';
 import StatusPill from '../../../_components/StatusPill';
 import RoleTag from '../../../_components/RoleTag';
 import SendRequestModal from '../../../_components/SendRequestModal';
+import { useToast } from '../../../_components/Toast';
 
 export default function ProfessionalDetail({ id }: { id: string }) {
-  const { state, currentUserId, loadMember } = usePortalData();
+  const { state, currentUserId, loadMember, reportMember } = usePortalData();
+  const toast = useToast();
   const [modalOpen, setModalOpen] = useState(false);
   const [justSent, setJustSent] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const professional = state.members[id];
 
@@ -27,6 +33,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
     if (!notFound) return null;
     return (
       <div className="empty-state">
+        <UserSearch className="empty-state-icon" aria-hidden="true" />
         <span>We couldn&apos;t find that profile.</span>
         <p style={{ marginTop: 14 }}><Link href="/portal/discover" className="btn-outline btn-sm">Back to Discover</Link></p>
       </div>
@@ -36,10 +43,31 @@ export default function ProfessionalDetail({ id }: { id: string }) {
   const existingRequest = state.requests.find(r => r.fromId === currentUserId && r.toId === id);
   const canRequest = !existingRequest || ['declined', 'cancelled'].includes(existingRequest.status);
 
+  async function handleReport() {
+    if (!window.confirm(`Report ${professional.name.split(' ')[0]}'s profile as fake or suspicious?`)) return;
+    setReporting(true);
+    try {
+      await reportMember(id);
+      setReported(true);
+      toast('Reported. Thanks for flagging it.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not send that report. Try again.', 'error');
+    } finally {
+      setReporting(false);
+    }
+  }
+
   return (
     <>
       <div className="pf-detail-head">
-        <Avatar name={professional.name} initials={professional.initials} color={professional.avatarColor} imageUrl={professional.avatarUrl} size="lg" />
+        <Avatar
+          name={professional.name}
+          initials={professional.initials}
+          color={professional.avatarColor}
+          imageUrl={professional.avatarUrl}
+          size="lg"
+          verified={professional.isProfessional}
+        />
         <div className="pf-detail-info">
           <div style={{ marginBottom: 8 }}><RoleTag isProfessional={professional.isProfessional} /></div>
           <h1>{professional.name}</h1>
@@ -57,27 +85,28 @@ export default function ProfessionalDetail({ id }: { id: string }) {
         </div>
       </div>
 
+      <p style={{ marginBottom: 20 }}>
+        <button className="btn-ghost" onClick={handleReport} disabled={reported || reporting}>
+          <Flag size={15} /> {reported ? 'Reported' : reporting ? 'Reporting…' : 'Report this profile'}
+        </button>
+      </p>
+
       <div className="detail-card">
         <h3>About</h3>
         <p>{professional.bio}</p>
       </div>
 
-      <div className="detail-card">
-        <h3>Open to</h3>
-        <div className="pf-card-avail">
-          {professional.availability.mentor && <span className="avail-pill mentor">Mentorship</span>}
-          {professional.availability.networking && <span className="avail-pill networking">Networking</span>}
-          {professional.availability.referrals && <span className="avail-pill referrals">Considers referrals</span>}
-          {!professional.availability.mentor && !professional.availability.networking && (
-            <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>Not currently open to new connections.</span>
-          )}
-        </div>
-        {professional.availability.referrals && (
+      {professional.referralsAvailable && (
+        <div className="detail-card">
+          <h3>Open to</h3>
+          <div className="pf-card-avail">
+            <span className="avail-pill referrals">Considers referrals</span>
+          </div>
           <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-3)' }}>
             A referral is never guaranteed. It&apos;s entirely {professional.name.split(' ')[0]}&apos;s discretion.
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="detail-card">
         <h3>Skills &amp; expertise</h3>

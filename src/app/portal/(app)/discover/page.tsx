@@ -5,12 +5,16 @@ import Link from 'next/link';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { ApiError } from '../../_lib/api';
 import type { Member } from '../../_lib/types';
+import { SearchX } from 'lucide-react';
 import Avatar from '../../_components/Avatar';
+import CardSkeleton from '../../_components/CardSkeleton';
+import { useToast } from '../../_components/Toast';
 
 const EMPTY_TEXT = { search: '', company: '', industry: '', university: '' };
 
 export default function DiscoverPage() {
   const { loadProfessionals } = usePortalData();
+  const toast = useToast();
   const [results, setResults] = useState<Member[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -21,8 +25,7 @@ export default function DiscoverPage() {
   // typing doesn't fire a request per keystroke).
   const [text, setText] = useState(EMPTY_TEXT);
   const [applied, setApplied] = useState(EMPTY_TEXT);
-  const [mentorOnly, setMentorOnly] = useState(false);
-  const [networkingOnly, setNetworkingOnly] = useState(false);
+  const [referralsOnly, setReferralsOnly] = useState(false);
 
   // Bumped on every new search so a slow "load more" from an old search can't
   // append its results to a newer one.
@@ -33,7 +36,7 @@ export default function DiscoverPage() {
     return () => window.clearTimeout(timer);
   }, [text]);
 
-  const filters = { ...applied, mentor: mentorOnly, networking: networkingOnly };
+  const filters = { ...applied, referralsAvailable: referralsOnly };
 
   useEffect(() => {
     const id = ++searchId.current;
@@ -41,7 +44,7 @@ export default function DiscoverPage() {
     // has to be an explicit flag rather than a computed value.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    loadProfessionals({ ...applied, mentor: mentorOnly, networking: networkingOnly })
+    loadProfessionals({ ...applied, referralsAvailable: referralsOnly })
       .then(res => {
         if (searchId.current !== id) return;
         setResults(res.members);
@@ -55,7 +58,7 @@ export default function DiscoverPage() {
         if (searchId.current === id) setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applied, mentorOnly, networkingOnly]);
+  }, [applied, referralsOnly]);
 
   async function loadMore() {
     const id = searchId.current;
@@ -67,7 +70,7 @@ export default function DiscoverPage() {
       setHasMore(res.hasMore);
       setPage(p => p + 1);
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not load more people. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not load more people. Try again.', 'error');
     } finally {
       setLoadingMore(false);
     }
@@ -76,17 +79,16 @@ export default function DiscoverPage() {
   function resetFilters() {
     setText(EMPTY_TEXT);
     setApplied(EMPTY_TEXT);
-    setMentorOnly(false);
-    setNetworkingOnly(false);
+    setReferralsOnly(false);
   }
 
-  const hasFilters = text.search || text.company || text.industry || text.university || mentorOnly || networkingOnly;
+  const hasFilters = text.search || text.company || text.industry || text.university || referralsOnly;
 
   return (
     <>
       <div className="portal-page-head">
         <h1>Discover</h1>
-        <p>Find UPSA professionals and mentors by company, industry, university, or what they&apos;re open to.</p>
+        <p>Find UPSA professionals and mentors by company, industry, or university, and reach out directly.</p>
       </div>
 
       <div className="filter-bar">
@@ -108,10 +110,7 @@ export default function DiscoverPage() {
         </div>
         <div className="filter-checks">
           <label className="filter-check">
-            <input type="checkbox" checked={mentorOnly} onChange={e => setMentorOnly(e.target.checked)} /> Mentorship
-          </label>
-          <label className="filter-check">
-            <input type="checkbox" checked={networkingOnly} onChange={e => setNetworkingOnly(e.target.checked)} /> Networking
+            <input type="checkbox" checked={referralsOnly} onChange={e => setReferralsOnly(e.target.checked)} /> Open to referrals
           </label>
         </div>
         {!!hasFilters && <button className="filter-reset" onClick={resetFilters}>Clear filters</button>}
@@ -121,13 +120,20 @@ export default function DiscoverPage() {
         {loading ? 'Searching…' : `${results.length}${hasMore ? '+' : ''} professional${results.length === 1 && !hasMore ? '' : 's'} found`}
       </p>
 
-      {!loading && results.length === 0 ? (
-        <div className="empty-state"><span>No one matches those filters yet. Try clearing a few.</span></div>
+      {loading ? (
+        <div className="pf-grid">
+          {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+        </div>
+      ) : results.length === 0 ? (
+        <div className="empty-state">
+          <SearchX className="empty-state-icon" aria-hidden="true" />
+          <span>No one matches those filters yet. Try clearing a few.</span>
+        </div>
       ) : (
         <>
           <div className="pf-grid">
             {results.map(pro => (
-              <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="card pf-card">
+              <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
                 <div className="pf-card-top">
                   <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
                   <div>
@@ -140,12 +146,13 @@ export default function DiscoverPage() {
                   <span>{pro.industry}</span>
                 </div>
                 <p className="pf-card-bio">{pro.bio}</p>
-                <div className="pf-card-foot">
-                  <div className="pf-card-avail">
-                    {pro.availability.mentor && <span className="avail-pill mentor">Mentor</span>}
-                    {pro.availability.networking && <span className="avail-pill networking">Networking</span>}
+                {pro.referralsAvailable && (
+                  <div className="pf-card-foot">
+                    <div className="pf-card-avail">
+                      <span className="avail-pill referrals">Open to referrals</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </Link>
             ))}
           </div>

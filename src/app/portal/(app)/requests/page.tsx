@@ -2,14 +2,19 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Check, X, Ban, Inbox } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { REQUEST_TYPE_LABELS } from '../../_lib/types';
+import { ApiError } from '../../_lib/api';
 import Avatar from '../../_components/Avatar';
 import StatusPill from '../../_components/StatusPill';
+import { useToast } from '../../_components/Toast';
 
 export default function RequestsPage() {
   const { state, currentUserId, respondToRequest, cancelRequest } = usePortalData();
+  const toast = useToast();
   const [tab, setTab] = useState<'incoming' | 'outgoing'>('incoming');
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const incoming = state.requests.filter(r => r.toId === currentUserId).slice().reverse();
   const outgoing = state.requests.filter(r => r.fromId === currentUserId).slice().reverse();
@@ -17,6 +22,30 @@ export default function RequestsPage() {
   const pendingOutgoing = outgoing.filter(r => r.status === 'pending').length;
 
   const list = tab === 'incoming' ? incoming : outgoing;
+
+  async function handleRespond(id: string, decision: 'accepted' | 'declined') {
+    setBusyId(id);
+    try {
+      await respondToRequest(id, decision);
+      toast(decision === 'accepted' ? 'Request accepted.' : 'Request declined.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update that request. Try again.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleCancel(id: string) {
+    setBusyId(id);
+    try {
+      await cancelRequest(id);
+      toast('Request cancelled.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not cancel that request. Try again.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <>
@@ -36,6 +65,7 @@ export default function RequestsPage() {
 
       {list.length === 0 ? (
         <div className="empty-state">
+          <Inbox className="empty-state-icon" aria-hidden="true" />
           <span>{tab === 'incoming' ? "No incoming requests yet." : "You haven't sent any requests yet."}</span>
           {tab === 'outgoing' && <p style={{ marginTop: 14 }}><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></p>}
         </div>
@@ -44,6 +74,7 @@ export default function RequestsPage() {
           {list.map(r => {
             const other = state.members[tab === 'incoming' ? r.fromId : r.toId];
             if (!other) return null;
+            const busy = busyId === r.id;
             return (
               <div className="req-card" key={r.id}>
                 <Link href={`/portal/professionals/${other.id}`}>
@@ -63,13 +94,19 @@ export default function RequestsPage() {
                   </p>
                   {tab === 'incoming' && r.status === 'pending' && (
                     <div className="req-card-actions">
-                      <button className="btn-primary btn-sm" onClick={() => respondToRequest(r.id, 'accepted')}>Accept</button>
-                      <button className="btn-outline btn-sm" onClick={() => respondToRequest(r.id, 'declined')}>Decline</button>
+                      <button className="btn-primary btn-sm" onClick={() => handleRespond(r.id, 'accepted')} disabled={busy}>
+                        <Check size={15} /> Accept
+                      </button>
+                      <button className="btn-outline btn-sm" onClick={() => handleRespond(r.id, 'declined')} disabled={busy}>
+                        <X size={15} /> Decline
+                      </button>
                     </div>
                   )}
                   {tab === 'outgoing' && r.status === 'pending' && (
                     <div className="req-card-actions">
-                      <button className="btn-ghost" onClick={() => cancelRequest(r.id)}>Cancel request</button>
+                      <button className="btn-ghost" onClick={() => handleCancel(r.id)} disabled={busy}>
+                        <Ban size={15} /> Cancel request
+                      </button>
                     </div>
                   )}
                   {r.status === 'accepted' && (

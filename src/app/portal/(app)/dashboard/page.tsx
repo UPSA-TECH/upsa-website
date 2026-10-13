@@ -2,23 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Sparkles } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import type { Member } from '../../_lib/types';
 import Avatar from '../../_components/Avatar';
+import CardSkeleton from '../../_components/CardSkeleton';
 import StatusPill from '../../_components/StatusPill';
 
 export default function DashboardPage() {
   const { currentUser, currentUserId, state, loadProfessionals } = usePortalData();
   const [suggested, setSuggested] = useState<Member[]>([]);
+  const [suggestedLoading, setSuggestedLoading] = useState(true);
 
   useEffect(() => {
-    loadProfessionals({}).then(({ members: list }) => {
-      const alreadyInTouch = new Set([
-        ...state.requests.map(r => (r.fromId === currentUserId ? r.toId : r.fromId)),
-        ...state.connections.flatMap(c => c.memberIds),
-      ]);
-      setSuggested(list.filter(m => m.id !== currentUserId && !alreadyInTouch.has(m.id)).slice(0, 3));
-    });
+    loadProfessionals({})
+      .then(({ members: list }) => {
+        const alreadyInTouch = new Set([
+          ...state.requests.map(r => (r.fromId === currentUserId ? r.toId : r.fromId)),
+          ...state.connections.flatMap(c => c.memberIds),
+        ]);
+        setSuggested(list.filter(m => m.id !== currentUserId && !alreadyInTouch.has(m.id)).slice(0, 3));
+      })
+      .finally(() => setSuggestedLoading(false));
     // Only ever needs to run once on mount, against whatever's already loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -49,8 +54,8 @@ export default function DashboardPage() {
         <div className="detail-card">
           <h3>Profile completeness</h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ flex: 1, height: 8, background: 'var(--paper-deep)', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{ width: `${completeness}%`, height: '100%', background: 'var(--moss)' }} />
+            <div className="progress-track">
+              <div className="progress-fill" style={{ width: `${completeness}%` }} />
             </div>
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--ink-2)' }}>{completeness}%</span>
           </div>
@@ -62,18 +67,18 @@ export default function DashboardPage() {
         </div>
         <div className="detail-card">
           <h3>Snapshot</h3>
-          <div style={{ display: 'flex', gap: 24 }}>
-            <div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: 'var(--ink)' }}>{incomingPending.length}</div>
-              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Incoming requests</div>
+          <div className="stat-row">
+            <div className="stat-tile">
+              <div className="stat-num">{incomingPending.length}</div>
+              <div className="stat-label">Incoming requests</div>
             </div>
-            <div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: 'var(--ink)' }}>{pendingOutgoing.length}</div>
-              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Awaiting reply</div>
+            <div className="stat-tile">
+              <div className="stat-num">{pendingOutgoing.length}</div>
+              <div className="stat-label">Awaiting reply</div>
             </div>
-            <div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: 'var(--ink)' }}>{activeConnections.length}</div>
-              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Active connections</div>
+            <div className="stat-tile">
+              <div className="stat-num">{activeConnections.length}</div>
+              <div className="stat-label">Active connections</div>
             </div>
           </div>
         </div>
@@ -83,27 +88,41 @@ export default function DashboardPage() {
         <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 19, color: 'var(--ink)' }}>Suggested for you</h2>
         <Link href="/portal/discover" className="btn-ghost" style={{ padding: 0 }}>See all &rarr;</Link>
       </div>
-      <div className="pf-grid" style={{ marginBottom: 32 }}>
-        {suggested.map(pro => (
-          <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="card pf-card">
-            <div className="pf-card-top">
-              <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
-              <div>
-                <div className="pf-card-name">{pro.name}</div>
-                <div className="pf-card-headline">{pro.role} &middot; {pro.company}</div>
+      {suggestedLoading ? (
+        <div className="pf-grid" style={{ marginBottom: 32 }}>
+          {Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)}
+        </div>
+      ) : suggested.length === 0 ? (
+        <div className="empty-state" style={{ marginBottom: 32 }}>
+          <span>No new suggestions right now, check back soon or browse everyone in Discover.</span>
+        </div>
+      ) : (
+        <div className="pf-grid" style={{ marginBottom: 32 }}>
+          {suggested.map(pro => (
+            <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
+              <div className="pf-card-top">
+                <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
+                <div>
+                  <div className="pf-card-name">{pro.name}</div>
+                  <div className="pf-card-headline">{pro.role} &middot; {pro.company}</div>
+                </div>
               </div>
-            </div>
-            <div className="pf-card-avail">
-              {pro.availability.mentor && <span className="avail-pill mentor">Mentor</span>}
-              {pro.availability.networking && <span className="avail-pill networking">Networking</span>}
-            </div>
-          </Link>
-        ))}
-      </div>
+              {pro.referralsAvailable && (
+                <div className="pf-card-avail">
+                  <span className="avail-pill referrals">Open to referrals</span>
+                </div>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 19, color: 'var(--ink)', marginBottom: 14 }}>Recent activity</h2>
       {recentActivity.length === 0 ? (
-        <p className="empty-state"><span>Nothing yet. Head to Discover to send your first request.</span></p>
+        <div className="empty-state">
+          <Sparkles className="empty-state-icon" aria-hidden="true" />
+          <span>Nothing yet. Head to Discover to send your first request.</span>
+        </div>
       ) : (
         <div className="req-list">
           {recentActivity.map(r => {

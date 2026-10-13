@@ -20,20 +20,22 @@ MAX_AVATAR_SIZE = 5 * 1024 * 1024
 ALLOWED_AVATAR_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
-class AvailabilitySerializer(serializers.Serializer):
-    mentor = serializers.BooleanField()
-    networking = serializers.BooleanField()
-    referrals = serializers.BooleanField()
+def _size_label(num_bytes):
+    if num_bytes < 1024:
+        return f"{num_bytes} B"
+    if num_bytes < 1024 * 1024:
+        return f"{num_bytes // 1024} KB"
+    return f"{num_bytes / (1024 * 1024):.1f} MB"
 
 
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="user_id", read_only=True)
-    availability = AvailabilitySerializer()
-    # Read only: the verified flag. Only an admin sets this (Django admin), never
-    # the member via this API - that would let anyone list themselves as a
-    # verified mentor with no review.
-    isProfessional = serializers.BooleanField(source="is_professional", read_only=True)
-    professionalRequested = serializers.BooleanField(source="professional_requested", required=False)
+    referralsAvailable = serializers.BooleanField(source="referrals_available", required=False)
+    # Self-serve: a member can set this to True themselves, but only once
+    # company + role are filled in (checked in update() below, since it needs
+    # both the incoming and already-saved values). No admin review - see
+    # Profile.is_professional's comment for why.
+    isProfessional = serializers.BooleanField(source="is_professional", required=False)
     avatarUrl = serializers.SerializerMethodField()
     hasAvatar = serializers.SerializerMethodField()
     emailNotifications = serializers.BooleanField(source="email_notifications", required=False)
@@ -52,9 +54,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             "location",
             "bio",
             "skills",
-            "availability",
+            "referralsAvailable",
             "isProfessional",
-            "professionalRequested",
             "deactivated",
             "avatarUrl",
             "hasAvatar",
@@ -76,16 +77,14 @@ class ProfileSerializer(serializers.ModelSerializer):
         return bool(obj.avatar)
 
     def update(self, instance, validated_data):
-        availability = validated_data.pop("availability", None)
-        if availability is not None:
-            instance.mentor_available = availability["mentor"]
-            instance.networking_available = availability["networking"]
-            instance.referrals_available = availability["referrals"]
-        requested = validated_data.get("professional_requested")
-        if requested and not instance.professional_requested:
-            from django.utils import timezone
-
-            instance.professional_requested_at = timezone.now()
+        wants_listed = validated_data.get("is_professional")
+        if wants_listed:
+            company = validated_data.get("company", instance.company)
+            role = validated_data.get("role", instance.role)
+            if not (company or "").strip() or not (role or "").strip():
+                raise serializers.ValidationError(
+                    {"isProfessional": "Add a company and job title before listing yourself."}
+                )
         for field, value in validated_data.items():
             setattr(instance, field, value)
         instance.save()
@@ -126,10 +125,22 @@ class MessageSerializer(serializers.ModelSerializer):
     connectionId = serializers.IntegerField(source="connection_id", read_only=True)
     senderId = serializers.IntegerField(source="sender_id", read_only=True)
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    resumeId = serializers.SerializerMethodField()
+    resumeFileName = serializers.SerializerMethodField()
+    resumeSizeLabel = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ["id", "connectionId", "senderId", "text", "createdAt"]
+        fields = ["id", "connectionId", "senderId", "text", "createdAt", "attachment", "resumeId", "resumeFileName", "resumeSizeLabel"]
+
+    def get_resumeId(self, obj):
+        return obj.resume_id
+
+    def get_resumeFileName(self, obj):
+        return obj.resume.file.name.rsplit("/", 1)[-1] if obj.resume else None
+
+    def get_resumeSizeLabel(self, obj):
+        return _size_label(obj.resume.file.size) if obj.resume else None
 
 
 class ResumeSerializer(serializers.ModelSerializer):
@@ -146,9 +157,4 @@ class ResumeSerializer(serializers.ModelSerializer):
         return obj.file.name.rsplit("/", 1)[-1]
 
     def get_sizeLabel(self, obj):
-        size = obj.file.size
-        if size < 1024:
-            return f"{size} B"
-        if size < 1024 * 1024:
-            return f"{size // 1024} KB"
-        return f"{size / (1024 * 1024):.1f} MB"
+        return _size_label(obj.file.size)

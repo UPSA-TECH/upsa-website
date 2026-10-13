@@ -1,12 +1,6 @@
 // Shared portal types. Data itself now comes from the real API (see api.ts
 // and PortalDataProvider.tsx) - nothing here is seed/mock data anymore.
 
-export type Availability = {
-  mentor: boolean;
-  networking: boolean;
-  referrals: boolean;
-};
-
 export type Member = {
   id: string;
   name: string;
@@ -23,20 +17,20 @@ export type Member = {
   location?: string;
   bio: string;
   skills: string[];
-  availability: Availability;
+  // A verified professional is discoverable by default; this is the one
+  // remaining opt-in, for whether "referral" is offered as a request reason.
+  referralsAvailable: boolean;
   isProfessional: boolean;
-  professionalRequested: boolean;
   visible: boolean;
   emailNotifications: boolean;
 };
 
 export type RequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
 
-export type RequestType = 'networking' | 'mentorship' | 'referral';
+export type RequestType = 'connect' | 'referral';
 
 export const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
-  networking: 'Professional networking',
-  mentorship: 'Mentorship / career guidance',
+  connect: 'Connect',
   referral: 'Referral request',
 };
 
@@ -68,6 +62,12 @@ export type ChatMessage = {
   senderId: string;
   text: string;
   time: string;
+  // Set when this message is a resume share instead of plain text - renders
+  // as a resume card bubble. resumeId is null if the resume was since replaced.
+  attachment: 'resume' | '';
+  resumeId: string | null;
+  resumeFileName: string | null;
+  resumeSizeLabel: string | null;
 };
 
 export type Resume = {

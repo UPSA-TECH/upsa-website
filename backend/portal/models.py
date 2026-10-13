@@ -4,8 +4,7 @@ from django.db import models
 from .storage import avatar_storage, resume_storage
 
 REQUEST_TYPE_CHOICES = [
-    ("networking", "Networking"),
-    ("mentorship", "Mentorship"),
+    ("connect", "Connect"),
     ("referral", "Referral"),
 ]
 
@@ -43,18 +42,21 @@ class Profile(models.Model):
     location = models.CharField(max_length=200, blank=True)
     bio = models.TextField(blank=True)
     skills = models.JSONField(default=list, blank=True)
-    mentor_available = models.BooleanField(default=False)
-    networking_available = models.BooleanField(default=False)
+    # The only visibility opt-in left: a verified professional is discoverable
+    # by default (see ProfessionalListView), this just controls whether they're
+    # open to being asked for a job referral specifically - a bigger ask than a
+    # normal "let's connect" request, worth opting into separately.
     referrals_available = models.BooleanField(default=False)
+    # Self-serve: a member sets this themselves once they've filled in
+    # company + role (enforced in the serializer), no admin review. There's no
+    # real way to verify anyone's claimed employer anyway - LinkedIn has the
+    # same gap - so a review step was only ever a speed bump, not a check.
+    # REPORTS_TO_FLAG reports instead flags a profile for an admin to look at
+    # after the fact (see ProfileReport below).
     is_professional = models.BooleanField(default=False)
     deactivated = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
-    # Self-serve: a member fills in company/role/industry/location and asks to be
-    # listed. is_professional is the actual verified flag that controls Discover -
-    # only an admin sets that (Django admin), never the member themselves, so
-    # nobody can list themselves as a verified mentor without review.
-    professional_requested = models.BooleanField(default=False)
-    professional_requested_at = models.DateTimeField(null=True, blank=True)
+    flagged_for_review = models.BooleanField(default=False)
 
     class Meta:
         indexes = [models.Index(fields=["is_professional", "deactivated"])]
@@ -62,13 +64,32 @@ class Profile(models.Model):
     def __str__(self):
         return self.name or f"profile:{self.user_id}"
 
-    @property
-    def availability(self):
-        return {
-            "mentor": self.mentor_available,
-            "networking": self.networking_available,
-            "referrals": self.referrals_available,
-        }
+
+# How many distinct members reporting the same profile flags it for an admin.
+REPORTS_TO_FLAG = 3
+
+
+class ProfileReport(models.Model):
+    """A member flagging another member's profile as fake/suspicious.
+
+    Reactive moderation, not pre-approval: anyone can list themselves as a
+    professional the moment they fill in company + role, and this is the
+    backstop if that gets abused - once REPORTS_TO_FLAG distinct people report
+    the same profile, it's flagged for an admin to look at (see admin.py).
+    """
+
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reports_filed")
+    reported = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reports_received")
+    reason = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["reporter", "reported"], name="one_report_per_reporter_per_profile"),
+        ]
+
+    def __str__(self):
+        return f"{self.reporter_id} reported {self.reported_id}"
 
 
 class ConnectionRequest(models.Model):
@@ -114,11 +135,22 @@ class Connection(models.Model):
         return user_id in (self.member_a_id, self.member_b_id)
 
 
+ATTACHMENT_CHOICES = [
+    ("resume", "Resume"),
+]
+
+
 class Message(models.Model):
     connection = models.ForeignKey(Connection, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_messages")
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    # A resume share shows up as a real message in the chat (not a separate
+    # button elsewhere), so both people see it in the conversation and it
+    # syncs like any other message. SET_NULL so an old share message still
+    # renders (as "no longer available") if the resume is later replaced.
+    attachment = models.CharField(max_length=20, choices=ATTACHMENT_CHOICES, blank=True)
+    resume = models.ForeignKey("Resume", on_delete=models.SET_NULL, null=True, blank=True, related_name="share_messages")
 
     class Meta:
         ordering = ["created_at"]

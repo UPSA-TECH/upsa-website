@@ -123,7 +123,7 @@ Do this once after the first deploy, and again after any change to environment v
 2. Sign up a **new** account at `/portal/sign-up`. You should land on onboarding.
 3. Upload a profile photo. It should display, and its URL should be on your photo domain.
 4. Finish onboarding, edit the profile, upload and delete a resume.
-5. With a second account (private window): fill in company/role/industry/location in Edit Profile and click "Request to be listed as a mentor/professional", then approve it in the admin panel (see "Approving a mentor or professional" in the runbook), then have it turn on "Open to networking" in Settings. From the first account, find it in Discover, send a request, accept it from the other side, and exchange a message. Check that the request showed up without reloading (the portal checks for changes every 30 seconds, and an open conversation refreshes every 5).
+5. With a second account (private window): fill in company and role in Edit Profile and click "List me as a mentor/professional" (self-serve, see "Listing as a mentor/professional" in the runbook — no approval step). From the first account, find it in Discover, send a request, accept it from the other side, and exchange a message. Check that the request showed up without reloading (the portal checks for changes every 30 seconds, and an open conversation refreshes every 5).
 6. Share the resume with the connection and download it from the other account. Confirm a third, unconnected account cannot.
 7. Check the browser console and Network tab for errors (CORS errors mean `FRONTEND_ORIGINS` is wrong).
 8. If email is set up, confirm a notification email arrives and contains no message text.
@@ -132,5 +132,5 @@ Do this once after the first deploy, and again after any change to environment v
 ## Rolling back
 
 - **Website:** in Netlify, Deploys, open the last good deploy and choose "Publish deploy".
-- **Backend:** redeploy the previous commit from the host's dashboard. Migrations only ever add columns so far, so an older backend still runs against a newer database, but check before rolling back past a migration.
+- **Backend:** redeploy the previous commit from the host's dashboard. Check the migration history before rolling back past a migration that removed a column (a few have, e.g. `0008`/`0009`) - an older backend's code won't reference the removed column, but double-check it doesn't still expect one the newer database no longer has.
 - **Database:** restore from the host's backup (see the runbook).

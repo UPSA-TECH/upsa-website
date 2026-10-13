@@ -7,12 +7,15 @@ import { useUser } from '@clerk/nextjs';
 import { PLACEHOLDER_NAME, usePortalData } from '../_lib/PortalDataProvider';
 import { ApiError } from '../_lib/api';
 import Avatar from '../_components/Avatar';
+import BrandMark from '../_components/BrandMark';
+import { useToast } from '../_components/Toast';
 
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { currentUser, updateProfile, uploadAvatar } = usePortalData();
+  const toast = useToast();
   const [step, setStep] = useState(currentUser.hasAvatar ? 2 : 1);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -24,18 +27,16 @@ export default function OnboardingPage() {
   const [university, setUniversity] = useState(currentUser.university);
   const [major, setMajor] = useState(currentUser.major ?? '');
   const [bio, setBio] = useState(currentUser.bio);
-  const [mentor, setMentor] = useState(currentUser.availability.mentor);
-  const [networking, setNetworking] = useState(currentUser.availability.networking);
 
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-      window.alert('Please upload a JPG, PNG, or WEBP image.');
+      toast('Please upload a JPG, PNG, or WEBP image.', 'error');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      window.alert('Profile photos are limited to 5 MB.');
+      toast('Profile photos are limited to 5 MB.', 'error');
       return;
     }
     setPreviewUrl(URL.createObjectURL(file));
@@ -43,7 +44,7 @@ export default function OnboardingPage() {
     try {
       await uploadAvatar(file);
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not upload that photo. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not upload that photo. Try again.', 'error');
       setPreviewUrl(null);
     } finally {
       setUploading(false);
@@ -53,27 +54,17 @@ export default function OnboardingPage() {
 
   async function finish() {
     try {
-      await updateProfile({
-        name,
-        headline,
-        university,
-        major,
-        bio,
-        availability: { ...currentUser.availability, mentor, networking },
-      });
+      await updateProfile({ name, headline, university, major, bio });
       router.push('/portal/dashboard');
     } catch (err) {
-      window.alert(err instanceof ApiError ? err.message : 'Could not save your profile. Try again.');
+      toast(err instanceof ApiError ? err.message : 'Could not save your profile. Try again.', 'error');
     }
   }
 
   return (
     <div className="portal-guest">
       <header className="portal-guest-header">
-        <div className="portal-guest-brand">
-          <img src="/images/logos/upsa-logo.png" alt="" width={32} height={32} />
-          UPSA Portal
-        </div>
+        <span className="portal-guest-brand"><BrandMark /></span>
         <Link href="/portal" className="portal-guest-back">Save &amp; exit</Link>
       </header>
 
@@ -82,7 +73,6 @@ export default function OnboardingPage() {
           <div className="onboarding-steps">
             <span className={step >= 1 ? 'done' : ''} />
             <span className={step >= 2 ? 'done' : ''} />
-            <span className={step >= 3 ? 'done' : ''} />
           </div>
 
           {step === 1 && (
@@ -154,47 +144,6 @@ export default function OnboardingPage() {
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn-outline" onClick={() => setStep(1)}>Back</button>
-                <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setStep(3)}>
-                  Continue &rarr;
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <h1>What are you looking for?</h1>
-              <p className="sub">You can turn these on or off any time from Settings.</p>
-
-              <div className="availability-grid">
-                <label className="avail-toggle" htmlFor="mentor-toggle">
-                  <span className="copy">
-                    <strong>Open to being a mentor</strong>
-                    <span>Turn this on if others can discover you and request mentorship. Not required to use the portal.</span>
-                  </span>
-                  <span className="switch">
-                    <input id="mentor-toggle" type="checkbox" checked={mentor} onChange={e => setMentor(e.target.checked)} />
-                    <span className="track" />
-                  </span>
-                </label>
-                <label className="avail-toggle" htmlFor="networking-toggle">
-                  <span className="copy">
-                    <strong>Open to professional networking</strong>
-                    <span>Appear in Discover so other members can find and message you.</span>
-                  </span>
-                  <span className="switch">
-                    <input id="networking-toggle" type="checkbox" checked={networking} onChange={e => setNetworking(e.target.checked)} />
-                    <span className="track" />
-                  </span>
-                </label>
-              </div>
-
-              <p className="hint" style={{ margin: '4px 0 22px' }}>
-                You&apos;ll always stay hidden from Discover unless you turn one of these on. Visibility is opt-in by default.
-              </p>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn-outline" onClick={() => setStep(2)}>Back</button>
                 <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={finish}>
                   Finish setup &rarr;
                 </button>
