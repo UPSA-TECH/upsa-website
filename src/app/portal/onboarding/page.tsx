@@ -18,15 +18,23 @@ export default function OnboardingPage() {
   const toast = useToast();
   const [step, setStep] = useState(currentUser.hasAvatar ? 2 : 1);
   const [uploading, setUploading] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { user } = useUser();
   const [name, setName] = useState(currentUser.name === PLACEHOLDER_NAME ? (user?.fullName ?? '') : currentUser.name);
-  const [headline, setHeadline] = useState(currentUser.headline);
+  const [isStudent, setIsStudent] = useState(Boolean(currentUser.university || currentUser.major));
+  const [isProfessional, setIsProfessional] = useState(Boolean(currentUser.isProfessional || currentUser.company || currentUser.role));
   const [university, setUniversity] = useState(currentUser.university);
   const [major, setMajor] = useState(currentUser.major ?? '');
-  const [bio, setBio] = useState(currentUser.bio);
+  const [company, setCompany] = useState(currentUser.company ?? '');
+  const [role, setRole] = useState(currentUser.role ?? '');
+  const [industry, setIndustry] = useState(currentUser.industry ?? '');
+
+  const studentReady = !isStudent || (university.trim() && major.trim());
+  const professionalReady = !isProfessional || (company.trim() && role.trim());
+  const canFinish = name.trim() && (isStudent || isProfessional) && studentReady && professionalReady;
 
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -53,11 +61,22 @@ export default function OnboardingPage() {
   }
 
   async function finish() {
+    setFinishing(true);
     try {
-      await updateProfile({ name, headline, university, major, bio });
+      await updateProfile({
+        name,
+        university: isStudent ? university : '',
+        major: isStudent ? major : '',
+        company: isProfessional ? company : '',
+        role: isProfessional ? role : '',
+        industry: isProfessional ? industry : '',
+        isProfessional,
+      });
       router.push('/portal/dashboard');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not save your profile. Try again.', 'error');
+    } finally {
+      setFinishing(false);
     }
   }
 
@@ -94,58 +113,83 @@ export default function OnboardingPage() {
                 <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handlePhotoPick} />
               </div>
 
+              <div className="field">
+                <label htmlFor="name">Full name</label>
+                <input id="name" value={name} onChange={e => setName(e.target.value)} />
+              </div>
+
               <button
                 className="btn-primary"
                 style={{ width: '100%', justifyContent: 'center' }}
                 onClick={() => setStep(2)}
-                disabled={!currentUser.hasAvatar && !previewUrl}
+                disabled={(!currentUser.hasAvatar && !previewUrl) || !name.trim()}
               >
                 Continue &rarr;
               </button>
-              {!currentUser.hasAvatar && !previewUrl && (
-                <p className="hint" style={{ marginTop: 10, textAlign: 'center' }}>A photo is required to continue.</p>
-              )}
+              {(!currentUser.hasAvatar && !previewUrl) || !name.trim() ? (
+                <p className="hint" style={{ marginTop: 10, textAlign: 'center' }}>A photo and your name are required to continue.</p>
+              ) : null}
             </>
           )}
 
           {step === 2 && (
             <>
-              <h1>Tell us about you</h1>
-              <p className="sub">This is what other members will see. You can change it any time.</p>
+              <h1>I am a...</h1>
+              <p className="sub">Check what applies - you can be both. Fill in the details below so other members can find you right away.</p>
 
-              <div className="field">
-                <label htmlFor="name">Full name</label>
-                <input id="name" value={name} onChange={e => setName(e.target.value)} />
+              <div className="type-choice-field" style={{ marginBottom: 18 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={isStudent} onChange={e => setIsStudent(e.target.checked)} />
+                  I&apos;m a student
+                </label>
+                {isStudent && (
+                  <div className="field-row" style={{ marginLeft: 26 }}>
+                    <div className="field">
+                      <label htmlFor="university">University</label>
+                      <input id="university" value={university} onChange={e => setUniversity(e.target.value)} placeholder="e.g. UCF" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="major">Major</label>
+                      <input id="major" value={major} onChange={e => setMajor(e.target.value)} placeholder="e.g. Computer Science" />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="field">
-                <label htmlFor="headline">Title</label>
-                <input
-                  id="headline"
-                  value={headline}
-                  onChange={e => setHeadline(e.target.value)}
-                  placeholder="e.g. CS Junior @ UCF, or Software Engineer @ Microsoft"
-                />
+
+              <div className="type-choice-field" style={{ marginBottom: 18 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={isProfessional} onChange={e => setIsProfessional(e.target.checked)} />
+                  I&apos;m a professional
+                </label>
+                {isProfessional && (
+                  <>
+                    <div className="field-row" style={{ marginLeft: 26 }}>
+                      <div className="field">
+                        <label htmlFor="company">Company</label>
+                        <input id="company" value={company} onChange={e => setCompany(e.target.value)} placeholder="e.g. Microsoft" />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="role">Job title</label>
+                        <input id="role" value={role} onChange={e => setRole(e.target.value)} placeholder="e.g. Software Engineer" />
+                      </div>
+                    </div>
+                    <div className="field" style={{ marginLeft: 26 }}>
+                      <label htmlFor="industry">Industry</label>
+                      <input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} placeholder="e.g. Technology" />
+                    </div>
+                    <p className="hint" style={{ marginLeft: 26 }}>You&apos;ll be listed in Discover right away, no review wait.</p>
+                  </>
+                )}
               </div>
-              <div className="field-row">
-                <div className="field">
-                  <label htmlFor="university">University or company</label>
-                  <input id="university" value={university} onChange={e => setUniversity(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="major">Major / role</label>
-                  <input id="major" value={major} onChange={e => setMajor(e.target.value)} />
-                </div>
-              </div>
-              <div className="field">
-                <label htmlFor="bio">One-line about you</label>
-                <textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} rows={3} />
-                <span className="hint">Shown on your profile and to anyone you request a connection with.</span>
-              </div>
+
+              {!(isStudent || isProfessional) && (
+                <p className="hint" style={{ marginBottom: 14 }}>Check at least one to continue.</p>
+              )}
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn-outline" onClick={() => setStep(1)}>Back</button>
-                <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={finish}>
-                  Finish setup &rarr;
+                <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={finish} disabled={!canFinish || finishing}>
+                  {finishing ? 'Finishing…' : 'Finish setup →'}
                 </button>
               </div>
             </>

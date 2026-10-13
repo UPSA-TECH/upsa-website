@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { UserX } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { useToast } from '../../_components/Toast';
 import { ApiError } from '../../_lib/api';
 
 export default function SettingsPage() {
   const { currentUser, updateProfile, setDeactivated } = usePortalData();
+  const { user } = useUser();
   const toast = useToast();
 
   async function toggleReferrals(value: boolean) {
@@ -28,29 +29,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleReactivate() {
-    try {
-      await setDeactivated(false);
-      toast('Account reactivated.', 'success');
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not reactivate your account. Try again.', 'error');
-    }
-  }
-
-  if (!currentUser.visible) {
-    return (
-      <div className="empty-state">
-        <UserX className="empty-state-icon" aria-hidden="true" />
-        <span>Your account is deactivated.</span>
-        <p style={{ marginTop: 14 }}>
-          <button className="btn-primary btn-sm" onClick={handleReactivate}>
-            Reactivate account
-          </button>
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="portal-page-head">
@@ -59,11 +37,16 @@ export default function SettingsPage() {
       </div>
 
       <div className="settings-section">
+        <h2>Account</h2>
+        <p className="desc">Signed in as <strong>{user?.primaryEmailAddress?.emailAddress ?? '...'}</strong></p>
+      </div>
+
+      <div className="settings-section">
         <h2>Discoverability</h2>
         <p className="desc">
           {currentUser.isProfessional
-            ? "You're verified as a mentor/professional, so you're automatically visible in Discover, no switch needed."
-            : <>Verified mentors/professionals are automatically visible in Discover, no switch needed. Not listed yet? Request that from your <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Profile</Link>.</>}
+            ? "You're listed as a mentor/professional, so you're automatically visible in Discover, no switch needed."
+            : <>Not listed yet. List yourself as a mentor/professional from your <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Profile</Link>.</>}
         </p>
         <div className="settings-row">
           <div className="copy">
