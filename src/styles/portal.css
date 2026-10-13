@@ -191,7 +191,7 @@
 .portal-hero-steps li:hover { background: rgba(255,255,255,.055); }
 .portal-hero-steps li:last-child { border-bottom: 1px solid rgba(255,255,255,.12); }
 .portal-hero-step-num { font-family: 'Geist Mono', monospace; font-size: 12px; color: rgba(255,255,255,.4); margin-top: 8px; }
-.portal-hero-step-icon {
+.portal-hero-steps .portal-hero-step-icon {
   display: flex; align-items: center; justify-content: center; flex: none;
   width: 52px; height: 52px; border-radius: 14px;
   background: #fff; color: var(--moss-deep);
