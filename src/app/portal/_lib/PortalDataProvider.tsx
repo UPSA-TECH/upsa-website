@@ -275,6 +275,8 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PortalState>(EMPTY_STATE);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const loadStartedRef = useRef(false);
 
   const publicRoute = isPublicPortalRoute(pathname);
@@ -362,13 +364,26 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         syncVersion.current = version;
         setState(snapshot);
         setCurrentUserId(userId);
+        setLoadFailed(false);
         setReady(true);
       })
       .catch(err => {
         console.error('Failed to load portal data', err);
+        // Deliberately NOT marking ready with no currentUserId set - that would
+        // fall through to EMPTY_MEMBER downstream, which reads as "deactivated"
+        // to anything gating on currentUser.visible. A failed load is a load
+        // error, not a deactivated account; show that honestly instead.
+        setLoadFailed(true);
         setReady(true);
       });
-  }, [publicRoute, authLoaded, isSignedIn, fetchSnapshot]);
+  }, [publicRoute, authLoaded, isSignedIn, fetchSnapshot, retryTick]);
+
+  function retryLoad() {
+    loadStartedRef.current = false;
+    setReady(false);
+    setLoadFailed(false);
+    setRetryTick(t => t + 1);
+  }
 
   // Quiet background refresh so new requests and accepted connections show up
   // without reloading. Every SYNC_INTERVAL_MS an idle tab makes ONE tiny request
@@ -653,6 +668,17 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         <div className="portal-loading-mark">
           <div className="portal-spinner" />
           <span>Loading your portal…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!publicRoute && loadFailed) {
+    return (
+      <div className="portal-loading-screen">
+        <div className="portal-loading-mark">
+          <span>Couldn&apos;t load your account. This isn&apos;t a deactivation - just a connection hiccup.</span>
+          <button className="btn-primary btn-sm" style={{ marginTop: 14 }} onClick={retryLoad}>Try again</button>
         </div>
       </div>
     );
