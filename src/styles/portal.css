@@ -725,7 +725,6 @@
   font-size: 12.5px; color: var(--ink-2); text-align: left; transition: background .15s;
 }
 .chat-attach-menu button:hover { background: var(--paper-deep); }
-.chat-attach-hint { display: block; padding: 8px 10px 4px; font-size: 11px; color: var(--ink-3); }
 
 @media (max-width: 960px) {
   .portal-shell:has(.portal-sidebar.open) .chat-dock { display: none; }
@@ -757,26 +756,6 @@
 .profile-head-edit { margin-left: auto; }
 .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 @media (max-width: 900px) { .profile-grid { grid-template-columns: 1fr; } }
-
-.resume-drop {
-  border: 1.5px dashed var(--rule); border-radius: var(--radius-lg); padding: 28px; text-align: center;
-  color: var(--ink-3); font-size: 13.5px; transition: border-color .2s, background .2s;
-}
-.resume-drop:hover { border-color: var(--moss); background: var(--moss-soft); }
-.resume-drop-icon { width: 30px; height: 30px; color: var(--ink-2); opacity: .7; margin: 0 auto 10px; display: block; }
-.resume-drop strong { display: block; color: var(--ink-2); font-size: 14px; margin-bottom: 4px; }
-.resume-file {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  padding: 14px 16px; border-radius: var(--radius-md); background: var(--paper-deep);
-}
-.resume-file-info { display: flex; align-items: center; gap: 12px; }
-.resume-file-icon {
-  display: flex; align-items: center; justify-content: center; flex: none;
-  width: 38px; height: 38px; border-radius: var(--radius-sm); background: #fff; color: var(--moss); box-shadow: var(--shadow-xs);
-}
-.resume-file .name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
-.resume-file .meta { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
-.resume-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---------- Settings ---------- */
 .settings-section { margin-bottom: 30px; }

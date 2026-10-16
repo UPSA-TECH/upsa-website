@@ -6,7 +6,6 @@ from .models import (
     ConnectionRequest,
     Message,
     Profile,
-    Resume,
 )
 
 MAX_RESUME_SIZE = 5 * 1024 * 1024
@@ -141,20 +140,3 @@ class MessageSerializer(serializers.ModelSerializer):
 
     def get_resumeSizeLabel(self, obj):
         return _size_label(obj.resume.file.size) if obj.resume else None
-
-
-class ResumeSerializer(serializers.ModelSerializer):
-    fileName = serializers.SerializerMethodField()
-    sizeLabel = serializers.SerializerMethodField()
-    uploadedAt = serializers.DateTimeField(source="uploaded_at", read_only=True)
-    sharedWith = serializers.PrimaryKeyRelatedField(source="shared_with", many=True, read_only=True)
-
-    class Meta:
-        model = Resume
-        fields = ["id", "fileName", "sizeLabel", "uploadedAt", "sharedWith"]
-
-    def get_fileName(self, obj):
-        return obj.file.name.rsplit("/", 1)[-1]
-
-    def get_sizeLabel(self, obj):
-        return _size_label(obj.file.size)

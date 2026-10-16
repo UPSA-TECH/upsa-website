@@ -143,7 +143,7 @@ id, connectionId, senderId, text, createdAt, attachment, resumeId, resumeFileNam
 attachment   "" | "resume"   read only - set internally, never by a client write
 ```
 
-A resume share is a real message in the conversation (see "Resume" below), not a separate side channel - both members see it in the thread, in order, like any other message. `attachment`/`resumeId`/`resumeFileName`/`resumeSizeLabel` are read-only on every message; sending them in a `POST` is silently ignored (they're not writable fields), so a client can't forge an attachment message. `resumeId` is `null` and the `resume*` fields are `null` on an ordinary text message, and also go `null` if the shared resume is later replaced (the message stays, it just can no longer be downloaded).
+A resume share is a real message in the conversation (see "Resume" below), not a separate side channel - both members see it in the thread, in order, like any other message. `attachment`/`resumeId`/`resumeFileName`/`resumeSizeLabel` are read-only on every message; sending them in a `POST` is silently ignored (they're not writable fields), so a client can't forge an attachment message. `resumeId` is `null` and the `resume*` fields are `null` on an ordinary text message, and also go `null` if the underlying upload is later deleted (the message stays, it just can no longer be downloaded).
 
 | Method and path | Notes |
 | --- | --- |
@@ -156,23 +156,16 @@ There is no realtime channel, read receipts or typing indicators. An open conver
 
 `GET /api/sync/` returns `{"version": "<string>"}`. The version changes whenever one of your requests or connections changes (a connection also changes on every new message), and is `"0"` if you have none. It costs two indexed queries and a few bytes.
 
-The portal calls this every 30 seconds (each tab is randomly offset by up to 20% so tabs never all ask at once) and only downloads profile, requests, connections and resume when the version differs from the last one it saw. Idle tabs therefore cost almost nothing: for a member with 20 conversations this replaced about 150 requests and 390 queries a minute with 2 requests and 4 queries.
+The portal calls this every 30 seconds (each tab is randomly offset by up to 20% so tabs never all ask at once) and only downloads profile, requests and connections when the version differs from the last one it saw. Idle tabs therefore cost almost nothing: for a member with 20 conversations this replaced about 150 requests and 390 queries a minute with 2 requests and 4 queries.
 
 ## Resume
 
-One resume per member. PDF, DOC or DOCX, up to 5 MB. Private always: it is never included in any list, only served to its owner or a connection it was shared with.
-
-```text
-id, fileName, sizeLabel, uploadedAt, sharedWith [connection ids]
-```
+Sent straight from a member's computer into one conversation at a time - not a profile fixture. There's no "my resume" record: every share is its own upload, scoped to the message and connection it was sent in. PDF, DOC or DOCX, up to 5 MB. Never included in any list, only served to the sender or the other member of that connection.
 
 | Method and path | Notes |
 | --- | --- |
-| `GET /api/resume/` | Yours, or `null` if none. |
-| `POST /api/resume/` | Multipart form, field `file`. Returns 201. Replaces an existing resume (old file deleted). |
-| `DELETE /api/resume/` | Returns 204. The file is deleted. |
-| `POST /api/connections/{id}/share-resume/` | Grants that one connection access, and posts it as a message in that conversation (see "Messages" above). Returns 201 and the new message. |
-| `GET /api/resume/{id}/download/` | The file itself, streamed. 404 unless you own it or a connection you belong to has been granted it. |
+| `POST /api/connections/{id}/share-resume/` | Multipart form, field `file`. Uploads the file and posts it as a message in that conversation (see "Messages" above) in one step. Returns 201 and the new message. |
+| `GET /api/resume/{id}/download/` | The file itself, streamed. 404 unless you're the sender or the other member of the connection it was shared in. |
 
 ## Emails
 

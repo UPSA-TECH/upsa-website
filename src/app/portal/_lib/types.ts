@@ -62,19 +62,13 @@ export type ChatMessage = {
   senderId: string;
   text: string;
   time: string;
-  // Set when this message is a resume share instead of plain text - renders
-  // as a resume card bubble. resumeId is null if the resume was since replaced.
+  // Set when this message is a resume sent straight from someone's computer
+  // instead of plain text - renders as a resume card bubble. resumeId is
+  // null if that particular upload is no longer available.
   attachment: 'resume' | '';
   resumeId: string | null;
   resumeFileName: string | null;
   resumeSizeLabel: string | null;
 };
-
-export type Resume = {
-  id: string;
-  fileName: string;
-  sizeLabel: string;
-  uploadedAt: string;
-} | null;
 
 export const AVATAR_COLORS = ['moss', 'gold', 'teal', 'plum', 'clay', 'slate'] as const;

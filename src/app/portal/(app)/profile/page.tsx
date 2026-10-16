@@ -6,15 +6,13 @@ import { ApiError } from '../../_lib/api';
 import Avatar from '../../_components/Avatar';
 import RoleTag from '../../_components/RoleTag';
 import { useToast } from '../../_components/Toast';
-import { Pencil, Camera, FileText, Download, Upload, Trash2, UploadCloud } from 'lucide-react';
+import { Pencil, Camera } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { currentUser, state, updateProfile, uploadResume, deleteResume, downloadResume, uploadAvatar, removeAvatar } = usePortalData();
+  const { currentUser, updateProfile, uploadAvatar, removeAvatar } = usePortalData();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(currentUser.name === PLACEHOLDER_NAME ? '' : currentUser.name);
@@ -112,47 +110,6 @@ export default function ProfilePage() {
       toast(err instanceof ApiError ? err.message : 'Could not remove your photo. Try again.', 'error');
     } finally {
       setPhotoBusy(false);
-    }
-  }
-
-  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const okType = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type);
-    if (!okType) {
-      toast('Please upload a PDF, DOC, or DOCX file.', 'error');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast('Resume files are limited to 5 MB.', 'error');
-      return;
-    }
-    setUploading(true);
-    try {
-      await uploadResume(file);
-      toast('Resume uploaded.', 'success');
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not upload that file. Try again.', 'error');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  }
-
-  async function handleDelete() {
-    try {
-      await deleteResume();
-      toast('Resume deleted.', 'success');
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not delete your resume. Try again.', 'error');
-    }
-  }
-
-  async function handleDownload() {
-    try {
-      await downloadResume();
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not download your resume. Try again.', 'error');
     }
   }
 
@@ -336,41 +293,6 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-
-      <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 19, color: 'var(--ink)', margin: '30px 0 14px' }}>Resume</h2>
-      <div className="detail-card">
-        {state.resume ? (
-          <div className="resume-file">
-            <div className="resume-file-info">
-              <span className="resume-file-icon"><FileText size={18} /></span>
-              <div>
-                <div className="name">{state.resume.fileName}</div>
-                <div className="meta">{state.resume.sizeLabel} &middot; uploaded {state.resume.uploadedAt} &middot; private by default</div>
-              </div>
-            </div>
-            <div className="resume-actions">
-              <button className="btn-outline btn-sm" onClick={handleDownload}><Download size={15} /> Download</button>
-              <button className="btn-outline btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                <Upload size={15} /> {uploading ? 'Uploading…' : 'Replace'}
-              </button>
-              <button className="btn-ghost" onClick={handleDelete}><Trash2 size={15} /> Delete</button>
-            </div>
-          </div>
-        ) : (
-          <div className="resume-drop">
-            <UploadCloud className="resume-drop-icon" aria-hidden="true" />
-            <strong>No resume uploaded</strong>
-            Kept private here. You choose who to share it with from your Connections.
-            <div style={{ marginTop: 14 }}>
-              <button className="btn-primary btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                <Upload size={15} /> {uploading ? 'Uploading…' : 'Upload resume'}
-              </button>
-            </div>
-          </div>
-        )}
-        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" hidden onChange={handleFilePick} />
-        <p className="hint" style={{ marginTop: 12 }}>PDF, DOC, or DOCX &middot; up to 5 MB. No one can see this until you choose to share it with a specific connection.</p>
-      </div>
     </>
   );
 }

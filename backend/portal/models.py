@@ -158,11 +158,14 @@ class Message(models.Model):
 
 
 def resume_upload_path(instance, filename):
-    return f"resumes/{instance.user_id}/{filename}"
+    return f"resumes/{instance.sender_id}/{filename}"
 
 
 class Resume(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="resume")
+    """A file sent straight from someone's computer into a chat message - not
+    a profile fixture. Each share is its own upload, never reused or replaced
+    in place, same as any other chat attachment."""
+
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_resumes")
     file = models.FileField(upload_to=resume_upload_path, storage=resume_storage)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    shared_with = models.ManyToManyField(Connection, blank=True, related_name="shared_resumes")

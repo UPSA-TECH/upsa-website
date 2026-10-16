@@ -1,10 +1,10 @@
 """Keep uploaded files in step with their database rows.
 
-Django deletes rows but never the files they point at, so replacing a resume
-or photo, removing it, or deleting a user (which cascades) would leave the
-old file behind forever - on R2 that's stored data nobody can reach anymore.
-Deletion waits for the transaction to commit, so a rolled-back change can
-never destroy a file that is still in use.
+Django deletes rows but never the files they point at, so replacing a photo,
+removing it, or deleting a user (which cascades, taking their shared resumes
+with it) would leave the old file behind forever - on R2 that's stored data
+nobody can reach anymore. Deletion waits for the transaction to commit, so a
+rolled-back change can never destroy a file that is still in use.
 """
 from django.db import transaction
 from django.db.models.signals import post_delete, pre_save
@@ -25,11 +25,6 @@ def _delete_replaced_file(model, instance, field_name, update_fields):
     new_file = getattr(instance, field_name)
     if old_name and old_name != (new_file.name if new_file else ""):
         _delete_after_commit(model._meta.get_field(field_name).storage, old_name)
-
-
-@receiver(pre_save, sender=Resume)
-def delete_replaced_resume(sender, instance, update_fields=None, **kwargs):
-    _delete_replaced_file(Resume, instance, "file", update_fields)
 
 
 @receiver(pre_save, sender=Profile)

@@ -96,7 +96,7 @@ Members are emailed when they receive a request, have one accepted, or get a mes
 | Backend won't start: "DJANGO_SECRET_KEY is not set" | Set `DJANGO_SECRET_KEY` (server) or `DJANGO_DEBUG=True` (local only). |
 | Backend rejects requests with "DisallowedHost" | Add its hostname to `DJANGO_ALLOWED_HOSTS`. |
 | Profile photos are broken images | `R2_PUBLIC_BASE_URL` is wrong, or the photo bucket has no public domain, or R2 is not configured and photos were saved to a disk that was wiped. |
-| Resume download says not found | Correct behavior unless the requester is the owner or the resume was shared with a connection they belong to. |
+| Resume download says not found | Correct behavior unless the requester is the one who sent it or the other member of the connection it was shared in. |
 | No notification emails | `CLERK_SECRET_KEY` or `EMAIL_HOST` is unset (emails are then off), the from-address isn't allowed by the provider, or the member opted out. Check the backend log. |
 | "You're doing that too quickly" | A rate limit was hit. It clears on its own, or on a backend restart. |
 | Discover is empty | Nobody has listed themselves as a professional yet (see above), or they're deactivated. |

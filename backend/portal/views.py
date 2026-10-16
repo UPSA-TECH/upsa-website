@@ -10,7 +10,6 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from PIL import Image, ImageOps, UnidentifiedImageError
-from rest_framework.views import APIView
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
@@ -26,7 +25,6 @@ from .serializers import (
     ConnectionSerializer,
     MessageSerializer,
     ProfileSerializer,
-    ResumeSerializer,
 )
 
 
@@ -318,39 +316,23 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
 # --- Resume -------------------------------------------------------------
 
 
-class ResumeView(APIView):
-    throttle_scope = "uploads"
-
-    def get(self, request):
-        resume = Resume.objects.filter(user=request.user).first()
-        if resume is None:
-            return Response(None)
-        return Response(ResumeSerializer(resume).data)
-
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            raise ValidationError("No file uploaded.")
-        if file.content_type not in ALLOWED_RESUME_CONTENT_TYPES:
-            raise ValidationError("Resume must be a PDF, DOC, or DOCX file.")
-        if file.size > MAX_RESUME_SIZE:
-            raise ValidationError("Resume must be under 5MB.")
-
-        resume, _ = Resume.objects.update_or_create(user=request.user, defaults={"file": file})
-        return Response(ResumeSerializer(resume).data, status=status.HTTP_201_CREATED)
-
-    def delete(self, request):
-        Resume.objects.filter(user=request.user).delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
 @api_view(["POST"])
 def share_resume(request, pk):
     connection = _connection_or_404(request, pk)
-    resume = get_object_or_404(Resume, user=request.user)
-    resume.shared_with.add(connection)
+    file = request.FILES.get("file")
+    if not file:
+        raise ValidationError("No file uploaded.")
+    if file.content_type not in ALLOWED_RESUME_CONTENT_TYPES:
+        raise ValidationError("Resume must be a PDF, DOC, or DOCX file.")
+    if file.size > MAX_RESUME_SIZE:
+        raise ValidationError("Resume must be under 5MB.")
+
+    resume = Resume.objects.create(sender=request.user, file=file)
     message = _record_message(connection, request.user, "Shared a resume", attachment="resume", resume=resume)
     return Response(MessageSerializer(message).data, status=status.HTTP_201_CREATED)
+
+
+share_resume.cls.throttle_scope = "uploads"
 
 
 @api_view(["GET"])
@@ -359,9 +341,8 @@ def download_resume(request, pk):
     # ownership/sharing check on every request. Once resumes move to R2,
     # swap this for handing back a short-lived signed URL instead.
     resume = get_object_or_404(Resume, pk=pk)
-    is_owner = resume.user_id == request.user.id
-    is_shared_with_me = resume.shared_with.filter(Q(member_a=request.user) | Q(member_b=request.user)).exists()
-    if not (is_owner or is_shared_with_me):
+    message = resume.share_messages.first()
+    if message is None or not message.connection.includes(request.user.id):
         raise Http404
 
     filename = resume.file.name.rsplit("/", 1)[-1]

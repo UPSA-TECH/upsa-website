@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { SendHorizontal, Paperclip, FileText, Download, Minus, X, Hand, MessageCircleOff } from 'lucide-react';
 import { OPEN_THREAD_INTERVAL_MS, usePortalData } from '../_lib/PortalDataProvider';
 import { useChatWidget } from '../_lib/ChatWidgetProvider';
 import { ApiError } from '../_lib/api';
 import Avatar from './Avatar';
 import { useToast } from './Toast';
+
+const ALLOWED_RESUME_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
 export default function ChatPopup({ connectionId, minimized }: { connectionId: string; minimized: boolean }) {
   const { state, currentUserId, sendMessage, loadMessages, shareResumeWithConnection, downloadResumeById } = usePortalData();
@@ -19,6 +20,7 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
   const [attachOpen, setAttachOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
+  const resumeInputRef = useRef<HTMLInputElement>(null);
 
   const connection = state.connections.find(c => c.id === connectionId);
   const threadMessages = state.messages.filter(m => m.connectionId === connectionId);
@@ -77,20 +79,33 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
     }
   }
 
-  async function handleShareResume() {
+  function handlePickResume() {
     setAttachOpen(false);
-    if (!state.resume) {
-      toast('Upload a resume on your Profile first.', 'info');
+    resumeInputRef.current?.click();
+  }
+
+  async function handleResumeChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_RESUME_TYPES.includes(file.type)) {
+      toast('Please pick a PDF, DOC, or DOCX file.', 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast('Resume files are limited to 5 MB.', 'error');
+      e.target.value = '';
       return;
     }
     setSharing(true);
     try {
-      await shareResumeWithConnection(connectionId);
+      await shareResumeWithConnection(connectionId, file);
       toast('Resume shared.', 'success');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not share your resume. Try again.', 'error');
     } finally {
       setSharing(false);
+      e.target.value = '';
     }
   }
 
@@ -176,12 +191,12 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
               </button>
               {attachOpen && (
                 <div className="chat-attach-menu">
-                  <button type="button" onClick={handleShareResume} disabled={sharing}>
-                    <FileText size={15} /> {sharing ? 'Sharing…' : 'Share your resume'}
+                  <button type="button" onClick={handlePickResume} disabled={sharing}>
+                    <FileText size={15} /> {sharing ? 'Sending…' : 'Send a resume from your computer'}
                   </button>
-                  {!state.resume && <Link href="/portal/profile" className="chat-attach-hint">No resume yet &rarr; upload one</Link>}
                 </div>
               )}
+              <input ref={resumeInputRef} type="file" accept=".pdf,.doc,.docx" hidden onChange={handleResumeChosen} />
             </div>
             <input
               value={draft}

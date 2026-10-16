@@ -67,15 +67,9 @@ export default function ConnectionsPage() {
                 </div>
 
                 <div className="conn-card-sub">
-                  {state.resumeSharedWith.includes(c.id) ? (
-                    <span style={{ color: 'var(--moss)', fontWeight: 600 }}>Resume shared with {other.name.split(' ')[0]}</span>
-                  ) : state.resume ? (
-                    <button className="btn-ghost" style={{ padding: 0 }} onClick={() => openChat(c.id)}>
-                      <Paperclip size={15} /> Share your resume from the chat
-                    </button>
-                  ) : (
-                    <span>No resume uploaded yet. <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Add one</Link> to share it in chat.</span>
-                  )}
+                  <button className="btn-ghost" style={{ padding: 0 }} onClick={() => openChat(c.id)}>
+                    <Paperclip size={15} /> Send a resume from the chat
+                  </button>
                 </div>
 
                 <div className="conn-card-foot">

@@ -19,6 +19,5 @@ urlpatterns = [
     path("connections/<int:pk>/cancel/", views.cancel_connection, name="connection-cancel"),
     path("connections/<int:pk>/share-resume/", views.share_resume, name="connection-share-resume"),
     path("connections/<int:pk>/messages/", views.ConnectionMessagesView.as_view(), name="connection-messages"),
-    path("resume/", views.ResumeView.as_view(), name="resume"),
     path("resume/<int:pk>/download/", views.download_resume, name="resume-download"),
 ]

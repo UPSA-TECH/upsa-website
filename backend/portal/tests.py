@@ -307,40 +307,36 @@ class PortalApiTests(APITestCase):
     def test_resume_upload_validation_and_sharing(self):
         self.as_(self.student)
 
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
+
         too_big = _fake_file(b"x" * (6 * 1024 * 1024), "resume.pdf", "application/pdf")
-        res = self.client.post(reverse("resume"), {"file": too_big}, format="multipart")
+        res = self.client.post(reverse("connection-share-resume", args=[connection.id]), {"file": too_big}, format="multipart")
         self.assertEqual(res.status_code, 400)
 
         wrong_type = _fake_file(b"not a resume", "resume.exe", "application/octet-stream")
-        res = self.client.post(reverse("resume"), {"file": wrong_type}, format="multipart")
+        res = self.client.post(reverse("connection-share-resume", args=[connection.id]), {"file": wrong_type}, format="multipart")
         self.assertEqual(res.status_code, 400)
 
         good = _fake_file(b"%PDF-1.4 fake resume", "resume.pdf", "application/pdf")
-        res = self.client.post(reverse("resume"), {"file": good}, format="multipart")
-        self.assertEqual(res.status_code, 201)
-        self.assertEqual(res.data["fileName"], "resume.pdf")
-
-        # not shared yet, mentor can't get it
-        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
-        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
-        resume_id = Resume.objects.get(user=self.student).id
-
-        self.as_(self.mentor)
-        denied = self.client.get(reverse("resume-download", args=[resume_id]))
-        self.assertEqual(denied.status_code, 404)
-
-        self.as_(self.student)
-        share = self.client.post(reverse("connection-share-resume", args=[connection.id]))
+        share = self.client.post(reverse("connection-share-resume", args=[connection.id]), {"file": good}, format="multipart")
         self.assertEqual(share.status_code, 201)
         self.assertEqual(share.data["attachment"], "resume")
-        self.assertEqual(share.data["resumeId"], resume_id)
         self.assertEqual(share.data["resumeFileName"], "resume.pdf")
+        resume_id = share.data["resumeId"]
 
         self.as_(self.mentor)
         allowed = self.client.get(reverse("resume-download", args=[resume_id]))
         self.assertEqual(allowed.status_code, 200)
 
+        # a stranger outside the connection can't get it
+        stranger = User.objects.create(username="clerk:stranger")
+        self.as_(stranger)
+        denied = self.client.get(reverse("resume-download", args=[resume_id]))
+        self.assertEqual(denied.status_code, 404)
+
         # it's a real message both sides see in the conversation, not a side channel
+        self.as_(self.student)
         thread = self.client.get(reverse("connection-messages", args=[connection.id]))
         self.assertEqual(len(thread.data), 1)
         self.assertEqual(thread.data[0]["attachment"], "resume")
@@ -396,6 +392,9 @@ class UploadCleanupTests(APITestCase):
 
     def setUp(self):
         self.user = User.objects.create(username="clerk:cleanup")
+        self.other = User.objects.create(username="clerk:cleanup-other")
+        req = ConnectionRequest.objects.create(from_user=self.user, to_user=self.other, request_type="connect")
+        self.connection = Connection.objects.create(request=req, member_a=self.user, member_b=self.other)
         self.client.force_authenticate(user=self.user)
 
     def resume_named(self, name):
@@ -405,26 +404,17 @@ class UploadCleanupTests(APITestCase):
 
     def upload_resume(self, name="cv.pdf"):
         with self.captureOnCommitCallbacks(execute=True):
-            res = self.client.post(reverse("resume"), {"file": self.resume_named(name)}, format="multipart")
+            res = self.client.post(
+                reverse("connection-share-resume", args=[self.connection.id]), {"file": self.resume_named(name)}, format="multipart"
+            )
         self.assertEqual(res.status_code, 201)
-        return Resume.objects.get(user=self.user)
-
-    def test_replacing_a_resume_deletes_the_old_file(self):
-        first = self.upload_resume("first.pdf")
-        old_name, storage = first.file.name, first.file.storage
-        self.assertTrue(storage.exists(old_name))
-
-        second = self.upload_resume("second.pdf")
-        self.assertNotEqual(second.file.name, old_name)
-        self.assertFalse(storage.exists(old_name))
-        self.assertTrue(storage.exists(second.file.name))
+        return Resume.objects.get(pk=res.data["resumeId"])
 
     def test_deleting_a_resume_deletes_its_file(self):
         resume = self.upload_resume()
         name, storage = resume.file.name, resume.file.storage
         with self.captureOnCommitCallbacks(execute=True):
-            res = self.client.delete(reverse("resume"))
-        self.assertEqual(res.status_code, 204)
+            resume.delete()
         self.assertFalse(storage.exists(name))
 
     def test_replacing_and_removing_a_photo_deletes_the_file(self):

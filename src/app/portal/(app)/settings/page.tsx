@@ -98,8 +98,8 @@ export default function SettingsPage() {
         </div>
         <div className="settings-row">
           <div className="copy">
-            <strong>Resume stays private by default</strong>
-            <span>Only shared with a specific professional when you opt in on a request.</span>
+            <strong>Resumes only go to who you send them to</strong>
+            <span>Sent straight from your computer into a specific conversation - never stored on your profile or visible to anyone else.</span>
           </div>
           <span className="switch"><input type="checkbox" defaultChecked disabled /><span className="track" /></span>
         </div>

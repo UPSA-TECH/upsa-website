@@ -11,7 +11,6 @@ import {
   type ConnectionRequest,
   type Member,
   type RequestType,
-  type Resume,
 } from './types';
 
 // Same public/guest routes middleware.ts leaves unauthenticated - these
@@ -73,14 +72,6 @@ type ApiMessage = {
   resumeFileName: string | null;
   resumeSizeLabel: string | null;
 };
-
-type ApiResume = {
-  id: number;
-  fileName: string;
-  sizeLabel: string;
-  uploadedAt: string;
-  sharedWith: number[];
-} | null;
 
 type Paginated<T> = { results: T[]; next?: string | null } | T[];
 
@@ -185,10 +176,6 @@ function toChatMessage(m: ApiMessage): ChatMessage {
   };
 }
 
-function toResume(r: NonNullable<ApiResume>): NonNullable<Resume> {
-  return { id: String(r.id), fileName: r.fileName, sizeLabel: r.sizeLabel, uploadedAt: timeAgo(r.uploadedAt) };
-}
-
 // Shown for a profile whose owner hasn't entered a name yet.
 export const PLACEHOLDER_NAME = 'New member';
 
@@ -220,8 +207,6 @@ type PortalState = {
   requests: ConnectionRequest[];
   connections: Connection[];
   messages: ChatMessage[];
-  resume: Resume;
-  resumeSharedWith: string[];
 };
 
 const EMPTY_STATE: PortalState = {
@@ -229,8 +214,6 @@ const EMPTY_STATE: PortalState = {
   requests: [],
   connections: [],
   messages: [],
-  resume: null,
-  resumeSharedWith: [],
 };
 
 export type ProfessionalFilters = {
@@ -273,13 +256,10 @@ type PortalContextValue = {
   cancelConnection: (connectionId: string) => Promise<void>;
   sendMessage: (connectionId: string, text: string) => Promise<void>;
   updateProfile: (fields: ProfileUpdate) => Promise<void>;
-  uploadResume: (file: File) => Promise<void>;
-  deleteResume: () => Promise<void>;
   uploadAvatar: (file: File) => Promise<void>;
   removeAvatar: () => Promise<void>;
-  downloadResume: () => Promise<void>;
   downloadResumeById: (resumeId: string, fileName: string) => Promise<void>;
-  shareResumeWithConnection: (connectionId: string) => Promise<void>;
+  shareResumeWithConnection: (connectionId: string, file: File) => Promise<void>;
   reportMember: (memberId: string, reason?: string) => Promise<void>;
   setDeactivated: (value: boolean) => Promise<void>;
   loadMember: (id: string) => Promise<Member | null>;
@@ -325,23 +305,23 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Everything the portal shows about "me": profile, requests, connections and
-  // resume. Profiles of other people are only fetched when they aren't already
-  // known. Messages are NOT part of this: a conversation loads its own when it
-  // is opened (and connections already carry a preview of the latest message),
-  // so the cost of a refresh doesn't grow with how many conversations you have.
+  // Everything the portal shows about "me": profile, requests, and
+  // connections. Profiles of other people are only fetched when they aren't
+  // already known. Messages are NOT part of this: a conversation loads its
+  // own when it is opened (and connections already carry a preview of the
+  // latest message), so the cost of a refresh doesn't grow with how many
+  // conversations you have.
   const fetchSnapshot = useCallback(
     async (known: Record<string, Member> = {}, knownVersion?: string) => {
       // Asked first: if something changes while the rest downloads, the version
       // we keep is older than the data, so the next check simply refreshes again.
       const version = knownVersion ?? (await call<{ version: string }>('/api/sync/')).version;
 
-      const [me, incomingRaw, outgoingRaw, connectionsRaw, resumeRaw] = await Promise.all([
+      const [me, incomingRaw, outgoingRaw, connectionsRaw] = await Promise.all([
         call<ApiProfile>('/api/members/me/'),
         call<ApiRequest[]>('/api/requests/?direction=incoming'),
         call<ApiRequest[]>('/api/requests/?direction=outgoing'),
         call<ApiConnection[]>('/api/connections/'),
-        call<ApiResume>('/api/resume/'),
       ]);
 
       const members: Record<string, Member> = { [String(me.id)]: toMember(me) };
@@ -363,8 +343,6 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         requests: [...incomingRaw, ...outgoingRaw].map(toRequest),
         connections: connectionsRaw.map(toConnection),
         messages: [],
-        resume: resumeRaw ? toResume(resumeRaw) : null,
-        resumeSharedWith: resumeRaw ? resumeRaw.sharedWith.map(String) : [],
       };
       return { userId: String(me.id), snapshot, version };
     },
@@ -596,21 +574,6 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
-  const uploadResume = useCallback(
-    async (file: File) => {
-      const form = new FormData();
-      form.append('file', file);
-      const created = await call<NonNullable<ApiResume>>('/api/resume/', { method: 'POST', body: form });
-      setState(prev => ({ ...prev, resume: toResume(created), resumeSharedWith: created.sharedWith.map(String) }));
-    },
-    [call]
-  );
-
-  const deleteResume = useCallback(async () => {
-    await call<void>('/api/resume/', { method: 'DELETE' });
-    setState(prev => ({ ...prev, resume: null, resumeSharedWith: [] }));
-  }, [call]);
-
   const uploadAvatar = useCallback(
     async (file: File) => {
       const form = new FormData();
@@ -642,18 +605,14 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [getToken]
   );
 
-  const downloadResume = useCallback(async () => {
-    if (!state.resume) return;
-    await downloadResumeById(state.resume.id, state.resume.fileName);
-  }, [state.resume, downloadResumeById]);
-
   const shareResumeWithConnection = useCallback(
-    async (connectionId: string) => {
-      const created = await call<ApiMessage>(`/api/connections/${connectionId}/share-resume/`, { method: 'POST' });
+    async (connectionId: string, file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      const created = await call<ApiMessage>(`/api/connections/${connectionId}/share-resume/`, { method: 'POST', body: form });
       const message = toChatMessage(created);
       setState(prev => ({
         ...prev,
-        resumeSharedWith: prev.resumeSharedWith.includes(connectionId) ? prev.resumeSharedWith : [...prev.resumeSharedWith, connectionId],
         // Only keep it if that thread's messages are already loaded - avoids
         // showing one message floating alone in a conversation that hasn't
         // been opened/fetched yet (loadMessages will bring the full history).
@@ -712,9 +671,6 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     cancelConnection,
     sendMessage,
     updateProfile,
-    uploadResume,
-    deleteResume,
-    downloadResume,
     downloadResumeById,
     uploadAvatar,
     removeAvatar,
