@@ -279,6 +279,25 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
   const [retryTick, setRetryTick] = useState(0);
   const loadStartedRef = useRef(false);
 
+  // PortalDataProvider lives at the portal layout, so it never unmounts
+  // across a sign-out -> sign-in in the same tab. Without this, whoever logs
+  // in next would inherit the previous account's profile/connections/requests
+  // until something else happened to trigger a refetch. Reset during render
+  // (React's documented pattern for state that must change the instant a
+  // prop does, https://react.dev/learn/you-might-not-need-an-effect) rather
+  // than in an effect, so there's no extra commit where the old account's
+  // data is still live.
+  const [prevSignedIn, setPrevSignedIn] = useState(isSignedIn);
+  if (authLoaded && prevSignedIn && !isSignedIn) {
+    setPrevSignedIn(isSignedIn);
+    setState(EMPTY_STATE);
+    setCurrentUserId(null);
+    setReady(false);
+    setLoadFailed(false);
+  } else if (prevSignedIn !== isSignedIn) {
+    setPrevSignedIn(isSignedIn);
+  }
+
   const publicRoute = isPublicPortalRoute(pathname);
 
   // Bumped at the start and end of every write. A background refresh that
@@ -354,6 +373,13 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     knownMembers.current = state.members;
   }, [state.members]);
+
+  // Lets the next real sign-in's effect below fetch fresh data instead of
+  // being skipped as "already loaded" from the account that just signed out.
+  useEffect(() => {
+    if (!authLoaded || isSignedIn) return;
+    loadStartedRef.current = false;
+  }, [authLoaded, isSignedIn]);
 
   useEffect(() => {
     if (publicRoute || !authLoaded || !isSignedIn || loadStartedRef.current) return;
