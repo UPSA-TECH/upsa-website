@@ -84,8 +84,8 @@ export default function ProfilePage() {
       e.target.value = '';
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast('Profile photos are limited to 5 MB.', 'error');
+    if (file.size > 20 * 1024 * 1024) {
+      toast('Profile photos are limited to 20 MB.', 'error');
       e.target.value = '';
       return;
     }
@@ -159,7 +159,7 @@ export default function ProfilePage() {
               </div>
               <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handlePhotoPick} />
             </div>
-            <span className="hint">JPG, PNG, or WEBP, up to 5 MB. Photo changes save right away, no need to click Save changes.</span>
+            <span className="hint">JPG, PNG, or WEBP, up to 20 MB. Photo changes save right away, no need to click Save changes.</span>
           </div>
           <div className="field">
             <label htmlFor="p-name">Full name</label>

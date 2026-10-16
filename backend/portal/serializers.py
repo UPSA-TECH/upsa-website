@@ -15,7 +15,7 @@ ALLOWED_RESUME_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
-MAX_AVATAR_SIZE = 5 * 1024 * 1024
+MAX_AVATAR_SIZE = 20 * 1024 * 1024
 ALLOWED_AVATAR_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 

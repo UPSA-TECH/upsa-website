@@ -94,7 +94,7 @@ MAX_AVATAR_PIXELS = 150_000_000
 def _avatar_thumbnail(upload):
     """A small WebP copy of the uploaded photo.
 
-    Avatars are shown at 40 to 100 pixels, so storing and serving a 5 MB
+    Avatars are shown at 40 to 100 pixels, so storing and serving a full-size
     original for each would make every page heavy. This also proves the file
     really is an image, and refuses absurdly large dimensions (a tiny file can
     decompress into gigabytes of pixels).
@@ -131,7 +131,7 @@ def upload_avatar(request):
     if file.content_type not in ALLOWED_AVATAR_CONTENT_TYPES:
         raise ValidationError("Profile photo must be a JPG, PNG, or WEBP image.")
     if file.size > MAX_AVATAR_SIZE:
-        raise ValidationError("Profile photo must be under 5MB.")
+        raise ValidationError("Profile photo must be under 20MB.")
 
     profile.avatar = _avatar_thumbnail(file)
     profile.save(update_fields=["avatar"])

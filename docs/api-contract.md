@@ -78,7 +78,7 @@ emailNotifications  boolean, default true. Only the owner ever sees this field.
 
 Once **3 distinct members** have reported the same profile, it's marked `flagged_for_review` in the Django admin (not exposed via this API) for an admin to look at. Reporting never auto-hides anyone from Discover by itself - an admin decides whether to deactivate the account after reviewing.
 
-**Profile photo.** JPG, PNG or WEBP, up to 5 MB.
+**Profile photo.** JPG, PNG or WEBP, up to 20 MB.
 
 | Method and path | Notes |
 | --- | --- |

@@ -130,7 +130,7 @@ class PortalApiTests(APITestCase):
         res = self.client.post(reverse("upload-avatar"), {"file": wrong_type}, format="multipart")
         self.assertEqual(res.status_code, 400)
 
-        too_big = _fake_image(mb=6)
+        too_big = _fake_image(mb=21)
         res = self.client.post(reverse("upload-avatar"), {"file": too_big}, format="multipart")
         self.assertEqual(res.status_code, 400)
 

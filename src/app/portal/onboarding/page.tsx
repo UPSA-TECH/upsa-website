@@ -43,8 +43,8 @@ export default function OnboardingPage() {
       toast('Please upload a JPG, PNG, or WEBP image.', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast('Profile photos are limited to 5 MB.', 'error');
+    if (file.size > 20 * 1024 * 1024) {
+      toast('Profile photos are limited to 20 MB.', 'error');
       return;
     }
     setPreviewUrl(URL.createObjectURL(file));
@@ -97,7 +97,7 @@ export default function OnboardingPage() {
           {step === 1 && (
             <>
               <h1>Add a profile photo</h1>
-              <p className="sub">Required so other members know who they&apos;re talking to. JPG, PNG, or WEBP, up to 5 MB.</p>
+              <p className="sub">Required so other members know who they&apos;re talking to. JPG, PNG, or WEBP, up to 20 MB.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, margin: '10px 0 26px' }}>
                 <Avatar
