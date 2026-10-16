@@ -733,8 +733,14 @@ class ScalingTests(APITestCase):
         self.assertFalse(Profile.objects.filter(user=self.me).exclude(avatar="").exists())
 
     def test_absurdly_large_dimensions_are_refused(self):
-        res = self.client.post(reverse("upload-avatar"), {"file": self.image_upload((6000, 5000), mode="L")}, format="multipart")
+        res = self.client.post(reverse("upload-avatar"), {"file": self.image_upload((14000, 11000), mode="L")}, format="multipart")
         self.assertEqual(res.status_code, 400)
+
+    def test_a_large_but_real_camera_photo_is_accepted(self):
+        # A 48MP phone photo - well under the decompression-bomb threshold,
+        # should never be rejected just for having a lot of pixels.
+        res = self.client.post(reverse("upload-avatar"), {"file": self.image_upload((8064, 6048))}, format="multipart")
+        self.assertEqual(res.status_code, 201)
 
 
 R2_TEST_SETTINGS = dict(

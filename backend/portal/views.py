@@ -85,7 +85,10 @@ report_member.cls.throttle_scope = "reports"
 
 
 AVATAR_SIZE = 256
-MAX_AVATAR_PIXELS = 25_000_000
+# Comfortably above any real camera photo (a 108MP phone sensor tops out
+# around 108_000_000, a wide panorama a bit more) - this exists to block
+# decompression-bomb files, not legitimate high-res photos.
+MAX_AVATAR_PIXELS = 150_000_000
 
 
 def _avatar_thumbnail(upload):
