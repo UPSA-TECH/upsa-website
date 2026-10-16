@@ -151,7 +151,7 @@ class ProfessionalListView(generics.ListAPIView):
         # A verified professional is discoverable by default - no separate
         # opt-in toggle to find, request, cancel, etc. (see Profile.referrals_available
         # docstring for the one opt-in that remains).
-        qs = Profile.objects.filter(is_professional=True, deactivated=False)
+        qs = Profile.objects.filter(is_professional=True, deactivated=False).exclude(user=self.request.user)
         params = self.request.query_params
         if search := params.get("search"):
             qs = qs.filter(

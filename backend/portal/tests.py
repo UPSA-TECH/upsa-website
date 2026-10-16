@@ -189,6 +189,17 @@ class PortalApiTests(APITestCase):
         self.assertIn(no_referrals.id, ids)
         self.assertNotIn(unlisted.id, ids)
 
+    def test_discover_never_shows_yourself(self):
+        self.as_(self.mentor)
+        self.client.patch(
+            reverse("my-profile"),
+            {"company": "Microsoft", "role": "PM", "isProfessional": True},
+            format="json",
+        )
+        res = self.client.get(reverse("professionals"))
+        ids = [m["id"] for m in res.data["results"]]
+        self.assertNotIn(self.mentor.id, ids)
+
     def test_discover_can_filter_to_referrals_only(self):
         self.as_(self.mentor)
         self.client.patch(
