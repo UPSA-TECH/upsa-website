@@ -524,7 +524,7 @@
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .pf-card-avail { display: flex; gap: 6px; flex-wrap: wrap; }
-.pf-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+.pf-card-foot { display: flex; justify-content: space-between; align-items: center; }
 .pf-card .avail-pill.referrals { background: rgba(255,255,255,.14); color: #E8C36B; }
 
 .avail-pill {
