@@ -56,9 +56,9 @@ export default function ProfilePage() {
     setListingBusy(true);
     try {
       await updateProfile({ company, role, industry, location, isProfessional: true });
-      toast("You're now listed in Discover.", 'success');
+      toast("You're now badged as a mentor/professional.", 'success');
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Could not list you. Try again.', 'error');
+      toast(err instanceof ApiError ? err.message : 'Could not update that. Try again.', 'error');
     } finally {
       setListingBusy(false);
     }
@@ -68,7 +68,7 @@ export default function ProfilePage() {
     setListingBusy(true);
     try {
       await updateProfile({ isProfessional: false });
-      toast('Removed from Discover.', 'success');
+      toast('Mentor/professional badge removed.', 'success');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not update that. Try again.', 'error');
     } finally {
@@ -175,11 +175,12 @@ export default function ProfilePage() {
             />
           </div>
           <div className="field">
-            <label htmlFor="p-bio">About <span className="hint" style={{ fontWeight: 400 }}>(optional)</span></label>
+            <label htmlFor="p-bio">About</label>
             <textarea id="p-bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} />
+            <span className="hint">Required to stay visible in Discover.</span>
           </div>
           <div className="field">
-            <label htmlFor="p-skills">Skills &amp; interests <span className="hint" style={{ fontWeight: 400 }}>(optional, comma separated)</span></label>
+            <label htmlFor="p-skills">Skills &amp; interests <span className="hint" style={{ fontWeight: 400 }}>(comma separated)</span></label>
             <input id="p-skills" value={skillsText} onChange={e => setSkillsText(e.target.value)} />
           </div>
 
@@ -236,9 +237,9 @@ export default function ProfilePage() {
                 <div style={{ marginBottom: 14, marginLeft: 26 }}>
                   {currentUser.isProfessional ? (
                     <>
-                      <p className="hint" style={{ marginBottom: 8 }}>You&apos;re listed as a mentor/professional. Save changes below to update these details.</p>
+                      <p className="hint" style={{ marginBottom: 8 }}>You&apos;re badged as a mentor/professional. Save changes below to update these details.</p>
                       <button type="button" className="btn-ghost" onClick={unlistMe} disabled={listingBusy}>
-                        {listingBusy ? 'Working…' : 'Remove myself from Discover'}
+                        {listingBusy ? 'Working…' : 'Remove mentor/professional badge'}
                       </button>
                     </>
                   ) : (
@@ -249,7 +250,7 @@ export default function ProfilePage() {
                         onClick={listMe}
                         disabled={!hasProfessionalDetails || listingBusy}
                       >
-                        {listingBusy ? 'Listing…' : 'List me as a mentor/professional'}
+                        {listingBusy ? 'Working…' : 'Add mentor/professional badge'}
                       </button>
                       {!hasProfessionalDetails && <p className="hint" style={{ marginTop: 6 }}>Add a company and job title above first.</p>}
                     </>
@@ -283,10 +284,12 @@ export default function ProfilePage() {
           <div className="detail-card">
             <h3>Discoverability</h3>
             <div className="pf-card-avail">
-              {currentUser.isProfessional ? (
+              {currentUser.onboardingComplete && currentUser.visible ? (
                 <span className="avail-pill referrals" style={{ background: 'var(--moss-soft)', color: 'var(--moss)' }}>Visible in Discover</span>
               ) : (
-                <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>Not listed yet. List yourself as a mentor/professional above.</span>
+                <span style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+                  {currentUser.visible ? 'Finish your profile to appear in Discover.' : 'Your account is deactivated - reactivate it in Settings to appear in Discover.'}
+                </span>
               )}
               {currentUser.referralsAvailable && <span className="avail-pill referrals">Open to referrals</span>}
             </div>

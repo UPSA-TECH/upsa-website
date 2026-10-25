@@ -38,6 +38,11 @@ class ProfileSerializer(serializers.ModelSerializer):
     avatarUrl = serializers.SerializerMethodField()
     hasAvatar = serializers.SerializerMethodField()
     emailNotifications = serializers.BooleanField(source="email_notifications", required=False)
+    onboardingComplete = serializers.BooleanField(source="onboarding_complete", read_only=True)
+    termsAccepted = serializers.SerializerMethodField()
+    # Write-only: {"acceptTerms": true} records acceptance now. There's no
+    # way to un-accept - once sent it just stays true.
+    acceptTerms = serializers.BooleanField(write_only=True, required=False)
 
     class Meta:
         model = Profile
@@ -59,7 +64,13 @@ class ProfileSerializer(serializers.ModelSerializer):
             "avatarUrl",
             "hasAvatar",
             "emailNotifications",
+            "onboardingComplete",
+            "termsAccepted",
+            "acceptTerms",
         ]
+
+    def get_termsAccepted(self, obj):
+        return obj.terms_accepted_at is not None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -84,8 +95,14 @@ class ProfileSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"isProfessional": "Add a company and job title before listing yourself."}
                 )
+        accept_terms = validated_data.pop("acceptTerms", False)
         for field, value in validated_data.items():
             setattr(instance, field, value)
+        if accept_terms and instance.terms_accepted_at is None:
+            from django.utils import timezone
+
+            instance.terms_accepted_at = timezone.now()
+        instance.refresh_onboarding_complete()
         instance.save()
         return instance
 

@@ -122,7 +122,8 @@ def upload_avatar(request):
     if request.method == "DELETE":
         if profile.avatar:
             profile.avatar = None
-            profile.save(update_fields=["avatar"])
+            profile.refresh_onboarding_complete()
+            profile.save(update_fields=["avatar", "onboarding_complete"])
         return Response(ProfileSerializer(profile, context={"request": request}).data)
 
     file = request.FILES.get("file")
@@ -134,7 +135,8 @@ def upload_avatar(request):
         raise ValidationError("Profile photo must be under 20MB.")
 
     profile.avatar = _avatar_thumbnail(file)
-    profile.save(update_fields=["avatar"])
+    profile.refresh_onboarding_complete()
+    profile.save(update_fields=["avatar", "onboarding_complete"])
     return Response(ProfileSerializer(profile, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -148,10 +150,24 @@ class ProfessionalListView(generics.ListAPIView):
     serializer_class = ProfileSerializer
 
     def get_queryset(self):
-        # A verified professional is discoverable by default - no separate
-        # opt-in toggle to find, request, cancel, etc. (see Profile.referrals_available
-        # docstring for the one opt-in that remains).
-        qs = Profile.objects.filter(is_professional=True, deactivated=False).exclude(user=self.request.user)
+        # Anyone with a fully completed profile is discoverable - student or
+        # professional, not just the latter (see Profile.is_actually_complete).
+        # A declined/cancelled request doesn't hide two people from each
+        # other; an actual connection does, since at that point they belong
+        # in each other's Connections list instead.
+        user = self.request.user
+        connected_ids = set()
+        pairs = Connection.objects.filter(Q(member_a=user) | Q(member_b=user)).exclude(status="cancelled").values_list(
+            "member_a_id", "member_b_id"
+        )
+        for a, b in pairs:
+            connected_ids.add(b if a == user.id else a)
+
+        qs = (
+            Profile.objects.filter(onboarding_complete=True, deactivated=False)
+            .exclude(user=user)
+            .exclude(user_id__in=connected_ids)
+        )
         params = self.request.query_params
         if search := params.get("search"):
             qs = qs.filter(
@@ -206,7 +222,10 @@ def accept_request(request, pk):
     req = get_object_or_404(ConnectionRequest, pk=pk, to_user=request.user, status="pending")
     req.status = "accepted"
     req.save(update_fields=["status", "updated_at"])
-    connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user)
+    # Accepting is the whole lifecycle now - there's no separate "mark
+    # complete" step after the fact (see cancel_connection for the only
+    # other state a connection can move to).
+    connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="completed")
     notifications.request_accepted(req)
     return Response(ConnectionSerializer(connection).data, status=status.HTTP_201_CREATED)
 
@@ -237,14 +256,6 @@ class ConnectionListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return Connection.objects.filter(Q(member_a=user) | Q(member_b=user))
-
-
-@api_view(["POST"])
-def complete_connection(request, pk):
-    connection = _connection_or_404(request, pk)
-    connection.status = "completed"
-    connection.save(update_fields=["status", "updated_at"])
-    return Response(ConnectionSerializer(connection).data)
 
 
 @api_view(["POST"])

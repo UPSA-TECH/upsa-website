@@ -57,12 +57,34 @@ class Profile(models.Model):
     deactivated = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
     flagged_for_review = models.BooleanField(default=False)
+    # Recomputed on every profile save (see portal.profile_completion) from
+    # name/avatar/bio/skills plus either the student or professional field
+    # set - this, not is_professional, is what gates Discover visibility.
+    # Stored rather than computed per-query since skills is a JSONField and
+    # "has at least one" isn't a portable filter across sqlite/postgres.
+    onboarding_complete = models.BooleanField(default=False)
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        indexes = [models.Index(fields=["is_professional", "deactivated"])]
+        indexes = [models.Index(fields=["onboarding_complete", "deactivated"])]
 
     def __str__(self):
         return self.name or f"profile:{self.user_id}"
+
+    def is_actually_complete(self):
+        """Every field required to be listed in Discover: name, photo, bio,
+        at least one skill, and either the student fields or the
+        professional fields filled in (can be both, just not neither)."""
+        if not (self.name.strip() and self.avatar and self.bio.strip() and self.skills):
+            return False
+        is_student_done = bool(self.university.strip() and self.major.strip())
+        is_professional_done = bool(self.company.strip() and self.role.strip() and self.industry.strip())
+        return is_student_done or is_professional_done
+
+    def refresh_onboarding_complete(self):
+        """Call after changing any field that feeds is_actually_complete();
+        does not save - callers already have their own save() to batch into."""
+        self.onboarding_complete = self.is_actually_complete()
 
 
 # How many distinct members reporting the same profile flags it for an admin.

@@ -1,9 +1,10 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { API_BASE, apiDownload, apiRequest } from './api';
+import { useToast } from '../_components/Toast';
 import {
   AVATAR_COLORS,
   type ChatMessage,
@@ -40,6 +41,8 @@ type ApiProfile = {
   emailNotifications?: boolean;
   avatarUrl: string | null;
   hasAvatar: boolean;
+  onboardingComplete: boolean;
+  termsAccepted: boolean;
 };
 
 type ApiRequest = {
@@ -134,6 +137,8 @@ function toMember(p: ApiProfile): Member {
     isProfessional: p.isProfessional,
     visible: !p.deactivated,
     emailNotifications: p.emailNotifications ?? true,
+    onboardingComplete: p.onboardingComplete,
+    termsAccepted: p.termsAccepted,
   };
 }
 
@@ -157,7 +162,12 @@ function toConnection(c: ApiConnection): Connection {
     status: c.status,
     since: timeAgo(c.since),
     lastMessage: c.lastMessage
-      ? { text: c.lastMessage.text, senderId: String(c.lastMessage.senderId), time: timeAgo(c.lastMessage.createdAt) }
+      ? {
+          text: c.lastMessage.text,
+          senderId: String(c.lastMessage.senderId),
+          time: timeAgo(c.lastMessage.createdAt),
+          createdAtIso: c.lastMessage.createdAt,
+        }
       : null,
   };
 }
@@ -200,6 +210,8 @@ const EMPTY_MEMBER: Member = {
   isProfessional: false,
   visible: false,
   emailNotifications: true,
+  onboardingComplete: false,
+  termsAccepted: false,
 };
 
 type PortalState = {
@@ -243,6 +255,7 @@ type ProfileUpdate = Partial<{
   isProfessional: boolean;
   deactivated: boolean;
   emailNotifications: boolean;
+  acceptTerms: boolean;
 }>;
 
 type PortalContextValue = {
@@ -252,7 +265,6 @@ type PortalContextValue = {
   sendRequest: (toId: string, requestType: RequestType, message: string) => Promise<void>;
   respondToRequest: (requestId: string, decision: 'accepted' | 'declined') => Promise<void>;
   cancelRequest: (requestId: string) => Promise<void>;
-  completeConnection: (connectionId: string) => Promise<void>;
   cancelConnection: (connectionId: string) => Promise<void>;
   sendMessage: (connectionId: string, text: string) => Promise<void>;
   updateProfile: (fields: ProfileUpdate) => Promise<void>;
@@ -265,19 +277,28 @@ type PortalContextValue = {
   loadMember: (id: string) => Promise<Member | null>;
   loadProfessionals: (filters: ProfessionalFilters, page?: number) => Promise<ProfessionalPage>;
   loadMessages: (connectionId: string) => Promise<void>;
+  isConnectionUnread: (connectionId: string) => boolean;
+  unreadMessageCount: number;
 };
 
 const PortalContext = createContext<PortalContextValue | null>(null);
 
 export function PortalDataProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { getToken, isLoaded: authLoaded, isSignedIn } = useAuth();
+  const toast = useToast();
   const [state, setState] = useState<PortalState>(EMPTY_STATE);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
   const loadStartedRef = useRef(false);
+  // connectionId -> ISO timestamp of the last message that connection's
+  // thread was actually viewed through (see markConnectionRead). Drives the
+  // unread badge/toast logic purely by comparing against each connection's
+  // lastMessage.createdAtIso - no separate "unread" flag to keep in sync.
+  const [lastReadAt, setLastReadAt] = useState<Record<string, string>>({});
 
   // PortalDataProvider lives at the portal layout, so it never unmounts
   // across a sign-out -> sign-in in the same tab. Without this, whoever logs
@@ -294,6 +315,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     setCurrentUserId(null);
     setReady(false);
     setLoadFailed(false);
+    setLastReadAt({});
   } else if (prevSignedIn !== isSignedIn) {
     setPrevSignedIn(isSignedIn);
   }
@@ -374,6 +396,15 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     knownMembers.current = state.members;
   }, [state.members]);
 
+  // Lets the background sync check (below) diff against what the portal
+  // already had before a refresh, to know what's actually *new* - a plain
+  // closure over `state` would just see whatever it was when the effect was
+  // set up, not the latest render.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   // Lets the next real sign-in's effect below fetch fresh data instead of
   // being skipped as "already loaded" from the account that just signed out.
   useEffect(() => {
@@ -411,6 +442,32 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     setRetryTick(t => t + 1);
   }
 
+  // Declared ahead of the background sync effect below, which depends on it
+  // (for the Accept/Decline buttons on a new-request toast) - a useEffect's
+  // dependency array is evaluated during render, so this has to already be
+  // initialized by the time that effect is set up, not just by the time its
+  // callback actually runs.
+  const respondToRequest = useCallback(
+    async (requestId: string, decision: 'accepted' | 'declined') => {
+      if (decision === 'accepted') {
+        const connection = await call<ApiConnection>(`/api/requests/${requestId}/accept/`, { method: 'POST' });
+        const mapped = toConnection(connection);
+        setState(prev => ({
+          ...prev,
+          requests: prev.requests.map(r => (r.id === requestId ? { ...r, status: 'accepted' } : r)),
+          connections: [...prev.connections, mapped],
+        }));
+      } else {
+        const updated = await call<ApiRequest>(`/api/requests/${requestId}/decline/`, { method: 'POST' });
+        setState(prev => ({
+          ...prev,
+          requests: prev.requests.map(r => (r.id === requestId ? toRequest(updated) : r)),
+        }));
+      }
+    },
+    [call]
+  );
+
   // Quiet background refresh so new requests and accepted connections show up
   // without reloading. Every SYNC_INTERVAL_MS an idle tab makes ONE tiny request
   // ("what's the version of my data?") and downloads nothing unless it changed.
@@ -429,10 +486,39 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         const fresh = await fetchSnapshot(knownMembers.current, version);
         if (versionAtStart !== writeVersion.current) return; // a save overlapped; try again next time
         syncVersion.current = fresh.version;
-        setState(prev => ({
+
+        const prev = stateRef.current;
+        const allMembers = { ...prev.members, ...fresh.snapshot.members };
+
+        // A pending request that wasn't there before - pop it, with Accept/Decline right on the toast.
+        const prevPendingIds = new Set(
+          prev.requests.filter(r => r.toId === currentUserId && r.status === 'pending').map(r => r.id)
+        );
+        for (const r of fresh.snapshot.requests) {
+          if (r.toId !== currentUserId || r.status !== 'pending' || prevPendingIds.has(r.id)) continue;
+          const from = allMembers[r.fromId];
+          toast(`${from?.name ?? 'Someone'} wants to connect.`, 'info', [
+            { label: 'Accept', onClick: () => respondToRequest(r.id, 'accepted').catch(() => router.push('/portal/requests')) },
+            { label: 'Decline', onClick: () => respondToRequest(r.id, 'declined').catch(() => router.push('/portal/requests')) },
+          ]);
+        }
+
+        // A connection whose last message changed, sent by the other person - new message, not mine.
+        const prevById = new Map(prev.connections.map(c => [c.id, c]));
+        for (const c of fresh.snapshot.connections) {
+          const last = c.lastMessage;
+          if (!last || last.senderId === currentUserId) continue;
+          const before = prevById.get(c.id)?.lastMessage;
+          if (before && before.createdAtIso >= last.createdAtIso) continue;
+          const otherId = c.memberIds.find(id => id !== currentUserId);
+          const from = otherId ? allMembers[otherId] : undefined;
+          toast(`${from?.name ?? 'New message'}: ${last.text}`, 'info');
+        }
+
+        setState(p => ({
           ...fresh.snapshot,
-          messages: prev.messages,
-          members: { ...prev.members, ...fresh.snapshot.members },
+          messages: p.messages,
+          members: { ...p.members, ...fresh.snapshot.members },
         }));
       } catch {
         // transient (offline, sleeping laptop); the next check simply tries again
@@ -457,7 +543,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [ready, publicRoute, call, fetchSnapshot]);
+  }, [ready, publicRoute, call, fetchSnapshot, currentUserId, toast, router, respondToRequest]);
 
   const loadMember = useCallback(
     async (id: string): Promise<Member | null> => {
@@ -510,42 +596,10 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
-  const respondToRequest = useCallback(
-    async (requestId: string, decision: 'accepted' | 'declined') => {
-      if (decision === 'accepted') {
-        const connection = await call<ApiConnection>(`/api/requests/${requestId}/accept/`, { method: 'POST' });
-        const mapped = toConnection(connection);
-        setState(prev => ({
-          ...prev,
-          requests: prev.requests.map(r => (r.id === requestId ? { ...r, status: 'accepted' } : r)),
-          connections: [...prev.connections, mapped],
-        }));
-      } else {
-        const updated = await call<ApiRequest>(`/api/requests/${requestId}/decline/`, { method: 'POST' });
-        setState(prev => ({
-          ...prev,
-          requests: prev.requests.map(r => (r.id === requestId ? toRequest(updated) : r)),
-        }));
-      }
-    },
-    [call]
-  );
-
   const cancelRequest = useCallback(
     async (requestId: string) => {
       const updated = await call<ApiRequest>(`/api/requests/${requestId}/cancel/`, { method: 'POST' });
       setState(prev => ({ ...prev, requests: prev.requests.map(r => (r.id === requestId ? toRequest(updated) : r)) }));
-    },
-    [call]
-  );
-
-  const completeConnection = useCallback(
-    async (connectionId: string) => {
-      const updated = await call<ApiConnection>(`/api/connections/${connectionId}/complete/`, { method: 'POST' });
-      setState(prev => ({
-        ...prev,
-        connections: prev.connections.map(c => (c.id === connectionId ? toConnection(updated) : c)),
-      }));
     },
     [call]
   );
@@ -560,6 +614,12 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     },
     [call]
   );
+
+  const markConnectionRead = useCallback((connectionId: string, atIso: string) => {
+    setLastReadAt(prev =>
+      !prev[connectionId] || atIso > prev[connectionId] ? { ...prev, [connectionId]: atIso } : prev
+    );
+  }, []);
 
   // Loads one conversation's messages (the latest 200). Called when a
   // conversation is opened and every few seconds while it stays open.
@@ -576,13 +636,23 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         connections: last
           ? prev.connections.map(c =>
               c.id === connectionId
-                ? { ...c, lastMessage: { text: last.text.slice(0, 140), senderId: String(last.senderId), time: timeAgo(last.createdAt) } }
+                ? {
+                    ...c,
+                    lastMessage: {
+                      text: last.text.slice(0, 140),
+                      senderId: String(last.senderId),
+                      time: timeAgo(last.createdAt),
+                      createdAtIso: last.createdAt,
+                    },
+                  }
                 : c
             )
           : prev.connections,
       }));
+      // Viewing a thread is what clears its unread state, regardless of who sent the latest message.
+      if (last) markConnectionRead(connectionId, last.createdAt);
     },
-    [call]
+    [call, markConnectionRead]
   );
 
   const sendMessage = useCallback(
@@ -598,7 +668,15 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         messages: [...prev.messages, toChatMessage(created)],
         connections: prev.connections.map(c =>
           c.id === connectionId
-            ? { ...c, lastMessage: { text: created.text.slice(0, 140), senderId: String(created.senderId), time: 'Just now' } }
+            ? {
+                ...c,
+                lastMessage: {
+                  text: created.text.slice(0, 140),
+                  senderId: String(created.senderId),
+                  time: 'Just now',
+                  createdAtIso: created.createdAt,
+                },
+              }
             : c
         ),
       }));
@@ -659,7 +737,9 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         // been opened/fetched yet (loadMessages will bring the full history).
         messages: prev.messages.some(m => m.connectionId === connectionId) ? [...prev.messages, message] : prev.messages,
         connections: prev.connections.map(c =>
-          c.id === connectionId ? { ...c, lastMessage: { text: message.text, senderId: message.senderId, time: message.time } } : c
+          c.id === connectionId
+            ? { ...c, lastMessage: { text: message.text, senderId: message.senderId, time: message.time, createdAtIso: created.createdAt } }
+            : c
         ),
       }));
     },
@@ -687,6 +767,19 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     },
     [call]
   );
+
+  const isConnectionUnread = useCallback(
+    (connectionId: string) => {
+      const c = state.connections.find(con => con.id === connectionId);
+      const last = c?.lastMessage;
+      if (!last || last.senderId === currentUserId) return false;
+      const readAt = lastReadAt[connectionId];
+      return !readAt || last.createdAtIso > readAt;
+    },
+    [state.connections, currentUserId, lastReadAt]
+  );
+
+  const unreadMessageCount = state.connections.filter(c => isConnectionUnread(c.id)).length;
 
   if (!publicRoute && !ready) {
     return (
@@ -719,7 +812,6 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     sendRequest,
     respondToRequest,
     cancelRequest,
-    completeConnection,
     cancelConnection,
     sendMessage,
     updateProfile,
@@ -732,6 +824,8 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     loadMember,
     loadProfessionals,
     loadMessages,
+    isConnectionUnread,
+    unreadMessageCount,
   };
 
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>;

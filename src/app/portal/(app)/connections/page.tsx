@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Users, MessageSquare, CheckCircle2, Ban, Paperclip } from 'lucide-react';
+import { Users, MessageSquare, Ban, Paperclip } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { useChatWidget } from '../../_lib/ChatWidgetProvider';
 import { REQUEST_TYPE_LABELS } from '../../_lib/types';
@@ -12,7 +12,7 @@ import StatusPill from '../../_components/StatusPill';
 import { useToast } from '../../_components/Toast';
 
 export default function ConnectionsPage() {
-  const { state, currentUserId, completeConnection, cancelConnection } = usePortalData();
+  const { state, currentUserId, cancelConnection } = usePortalData();
   const { openChat } = useChatWidget();
   const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export default function ConnectionsPage() {
     <>
       <div className="portal-page-head">
         <h1>My Connections</h1>
-        <p>People you&apos;ve connected with. Mark a connection complete once you&apos;ve had your conversation.</p>
+        <p>People you&apos;ve connected with.</p>
       </div>
 
       {connections.length === 0 ? (
@@ -54,13 +54,13 @@ export default function ConnectionsPage() {
             const busy = busyId === c.id;
             return (
               <div className="conn-card" key={c.id}>
-                <div className="conn-card-top">
+                <Link href={`/portal/professionals/${other.id}`} className="conn-card-top">
                   <Avatar name={other.name} initials={other.initials} color={other.avatarColor} imageUrl={other.avatarUrl} size="md" />
                   <div>
                     <div className="conn-card-name">{other.name}</div>
                     <div className="conn-card-sub">{other.role ? `${other.role} · ${other.company}` : other.headline}</div>
                   </div>
-                </div>
+                </Link>
                 <div className="conn-card-sub">
                   Connected {c.since}
                   {sourceRequest && <> &middot; {REQUEST_TYPE_LABELS[sourceRequest.requestType]}</>}
@@ -78,18 +78,9 @@ export default function ConnectionsPage() {
                     <button className="btn-outline btn-sm" onClick={() => openChat(c.id)}>
                       <MessageSquare size={15} /> Message
                     </button>
-                    {c.status === 'active' && (
-                      <button
-                        className="btn-primary btn-sm"
-                        disabled={busy}
-                        onClick={() => run(c.id, () => completeConnection(c.id), 'Connection marked complete.', 'Could not update that connection. Try again.')}
-                      >
-                        <CheckCircle2 size={15} /> Mark complete
-                      </button>
-                    )}
                   </div>
                 </div>
-                {c.status === 'active' && (
+                {c.status !== 'cancelled' && (
                   <button
                     className="btn-ghost"
                     style={{ alignSelf: 'flex-start' }}

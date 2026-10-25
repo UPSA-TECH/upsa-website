@@ -23,6 +23,8 @@ export type Member = {
   isProfessional: boolean;
   visible: boolean;
   emailNotifications: boolean;
+  onboardingComplete: boolean;
+  termsAccepted: boolean;
 };
 
 export type RequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
@@ -53,7 +55,9 @@ export type Connection = {
   status: ConnectionStatus;
   since: string;
   // The newest message, so a conversation list needs no per-thread download.
-  lastMessage: { text: string; senderId: string; time: string } | null;
+  // createdAtIso is kept alongside the humanized `time` purely to compare
+  // against lastReadAt for unread tracking.
+  lastMessage: { text: string; senderId: string; time: string; createdAtIso: string } | null;
 };
 
 export type ChatMessage = {

@@ -28,6 +28,25 @@ class PortalApiTests(APITestCase):
     def as_(self, user):
         self.client.force_authenticate(user=user)
 
+    def complete_profile(self, user, **fields):
+        """Fills in everything Profile.is_actually_complete() requires (name,
+        photo, bio, a skill, plus whichever of the student/professional
+        field sets isn't overridden away), then applies any extra fields."""
+        self.as_(user)
+        self.client.post(reverse("upload-avatar"), {"file": _fake_image()}, format="multipart")
+        payload = {
+            "name": f"Member {user.id}",
+            "bio": "Happy to chat.",
+            "skills": ["Networking"],
+            "company": "Acme",
+            "role": "Engineer",
+            "industry": "Technology",
+        }
+        payload.update(fields)
+        res = self.client.patch(reverse("my-profile"), payload, format="json")
+        self.assertEqual(res.status_code, 200, res.data)
+        return res
+
     # --- profile ---------------------------------------------------------
 
     def test_profile_created_lazily_and_patchable(self):
@@ -56,7 +75,7 @@ class PortalApiTests(APITestCase):
         self.assertEqual(res.status_code, 400)
         self.assertFalse(Profile.objects.get(user=self.student).is_professional)
 
-    def test_member_can_self_serve_list_once_company_and_role_are_filled_in(self):
+    def test_member_can_self_serve_list_as_professional_no_admin_wait(self):
         self.as_(self.student)
         res = self.client.patch(
             reverse("my-profile"),
@@ -65,26 +84,14 @@ class PortalApiTests(APITestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.data["isProfessional"])
+        self.assertTrue(Profile.objects.get(user=self.student).is_professional)
 
-        profile = Profile.objects.get(user=self.student)
-        self.assertTrue(profile.is_professional)
-        self.assertEqual(profile.company, "Microsoft")
-
-        # no admin step needed - they're discoverable immediately
-        self.as_(self.mentor)
-        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
-        self.assertIn(self.student.id, ids)
-
-    def test_member_can_unlist_themselves(self):
+    def test_a_deactivated_member_disappears_from_discover(self):
+        # deactivated, not isProfessional, is the real Discover opt-out now -
+        # see test_discover_needs_a_fully_completed_profile for why.
+        self.complete_profile(self.student)
         self.as_(self.student)
-        self.client.patch(
-            reverse("my-profile"),
-            {"company": "Microsoft", "role": "SWE", "isProfessional": True},
-            format="json",
-        )
-        res = self.client.patch(reverse("my-profile"), {"isProfessional": False}, format="json")
-        self.assertEqual(res.status_code, 200)
-        self.assertFalse(res.data["isProfessional"])
+        self.client.patch(reverse("my-profile"), {"deactivated": True}, format="json")
 
         self.as_(self.mentor)
         ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
@@ -156,65 +163,42 @@ class PortalApiTests(APITestCase):
 
     # --- discover ----------------------------------------------------------
 
-    def test_discover_shows_any_self_listed_professional_regardless_of_referrals_toggle(self):
-        # Being discoverable no longer needs its own opt-in toggle - anyone
-        # who's self-listed (company + role + isProfessional) shows up.
-        # referralsAvailable only controls whether "referral" is offered as a
-        # request reason.
-        self.as_(self.mentor)
-        self.client.patch(
-            reverse("my-profile"),
-            {"company": "Microsoft", "role": "PM", "referralsAvailable": True, "isProfessional": True},
-            format="json",
-        )
-
-        no_referrals = User.objects.create(username="clerk:no-referrals-pro")
-        self.as_(no_referrals)
-        self.client.patch(
-            reverse("my-profile"),
-            {"company": "Apple", "role": "Designer", "referralsAvailable": False, "isProfessional": True},
-            format="json",
-        )
-
-        unlisted = User.objects.create(username="clerk:unlisted")
-        self.as_(unlisted)
-        self.client.patch(reverse("my-profile"), {"referralsAvailable": True}, format="json")
-        # never set isProfessional - stays hidden
-
-        self.as_(self.student)
-        res = self.client.get(reverse("professionals"))
-        self.assertEqual(res.status_code, 200)
-        ids = [m["id"] for m in res.data["results"]]
-        self.assertIn(self.mentor.id, ids)
-        self.assertIn(no_referrals.id, ids)
-        self.assertNotIn(unlisted.id, ids)
-
-    def test_discover_never_shows_yourself(self):
+    def test_discover_needs_a_fully_completed_profile(self):
+        # Half-done doesn't count, even for a self-listed professional -
+        # name/photo/bio/skills are mandatory too, not just company+role.
         self.as_(self.mentor)
         self.client.patch(
             reverse("my-profile"),
             {"company": "Microsoft", "role": "PM", "isProfessional": True},
             format="json",
         )
+
+        # A complete *student* profile is just as discoverable as a complete
+        # professional one - Discover isn't segmented by which type you are.
+        complete_student = User.objects.create(username="clerk:complete-student")
+        self.complete_profile(complete_student, company="", role="", industry="", university="UCF", major="CS")
+
+        complete_pro = User.objects.create(username="clerk:complete-pro")
+        self.complete_profile(complete_pro)
+
+        self.as_(self.student)
+        res = self.client.get(reverse("professionals"))
+        self.assertEqual(res.status_code, 200)
+        ids = [m["id"] for m in res.data["results"]]
+        self.assertNotIn(self.mentor.id, ids)
+        self.assertIn(complete_student.id, ids)
+        self.assertIn(complete_pro.id, ids)
+
+    def test_discover_never_shows_yourself(self):
+        self.complete_profile(self.mentor)
         res = self.client.get(reverse("professionals"))
         ids = [m["id"] for m in res.data["results"]]
         self.assertNotIn(self.mentor.id, ids)
 
     def test_discover_can_filter_to_referrals_only(self):
-        self.as_(self.mentor)
-        self.client.patch(
-            reverse("my-profile"),
-            {"company": "Microsoft", "role": "PM", "referralsAvailable": True, "isProfessional": True},
-            format="json",
-        )
-
+        self.complete_profile(self.mentor, referralsAvailable=True)
         no_referrals = User.objects.create(username="clerk:no-referrals-pro2")
-        self.as_(no_referrals)
-        self.client.patch(
-            reverse("my-profile"),
-            {"company": "Apple", "role": "Designer", "referralsAvailable": False, "isProfessional": True},
-            format="json",
-        )
+        self.complete_profile(no_referrals, referralsAvailable=False)
 
         self.as_(self.student)
         res = self.client.get(reverse("professionals"), {"referralsAvailable": "true"})
@@ -223,18 +207,7 @@ class PortalApiTests(APITestCase):
         self.assertNotIn(no_referrals.id, ids)
 
     def test_discover_search_matches_name_and_skills(self):
-        self.as_(self.mentor)
-        self.client.patch(
-            reverse("my-profile"),
-            {
-                "name": "Mentor Mia",
-                "company": "Microsoft",
-                "role": "PM",
-                "skills": ["Distributed Systems", "Go"],
-                "isProfessional": True,
-            },
-            format="json",
-        )
+        self.complete_profile(self.mentor, name="Mentor Mia", skills=["Distributed Systems", "Go"])
         self.as_(self.student)
 
         def found(term):
@@ -248,12 +221,7 @@ class PortalApiTests(APITestCase):
     def test_discover_is_paginated_at_twenty(self):
         for i in range(25):
             pro = User.objects.create(username=f"clerk:pro{i}")
-            self.as_(pro)
-            self.client.patch(
-                reverse("my-profile"),
-                {"name": f"Pro {i:02d}", "company": "Co", "role": "Role", "isProfessional": True},
-                format="json",
-            )
+            self.complete_profile(pro, name=f"Pro {i:02d}")
         self.as_(self.student)
         page1 = self.client.get(reverse("professionals"))
         self.assertEqual(len(page1.data["results"]), 20)
@@ -261,6 +229,31 @@ class PortalApiTests(APITestCase):
         page2 = self.client.get(reverse("professionals"), {"page": 2})
         self.assertEqual(len(page2.data["results"]), 5)
         self.assertIsNone(page2.data["next"])
+
+    def test_connecting_hides_each_other_from_discover_but_a_declined_request_does_not(self):
+        self.complete_profile(self.mentor)
+        self.complete_profile(self.student)
+
+        self.as_(self.student)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertIn(self.mentor.id, ids)  # not connected yet - still shows
+
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        self.as_(self.mentor)
+        self.client.post(reverse("request-decline", args=[req.id]))
+        self.as_(self.student)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertIn(self.mentor.id, ids)  # declined, not connected - still shows
+
+        req2 = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        self.as_(self.mentor)
+        self.client.post(reverse("request-accept", args=[req2.id]))
+        self.as_(self.student)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertNotIn(self.mentor.id, ids)  # now connected - hidden from Discover
+        self.as_(self.mentor)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertNotIn(self.student.id, ids)
 
     # --- requests / connections / messages ----------------------------------
 
@@ -291,6 +284,8 @@ class PortalApiTests(APITestCase):
         self.assertEqual(accept.status_code, 201)
         connection_id = accept.data["id"]
         self.assertEqual(set(accept.data["memberIds"]), {self.student.id, self.mentor.id})
+        # accepting is the whole lifecycle now - no separate "mark complete" step
+        self.assertEqual(accept.data["status"], "completed")
 
         # a stranger can't touch this connection
         stranger = User.objects.create(username="clerk:stranger")
