@@ -306,6 +306,31 @@ class PortalApiTests(APITestCase):
         ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
         self.assertNotIn(self.student.id, ids)
 
+    def test_a_connection_still_turns_up_when_you_search_or_filter_for_them(self):
+        # Hidden from the plain unfiltered browse (they're in Connections
+        # already), but actually searching or filtering is a different
+        # intent - you're looking for someone specific, and a connection
+        # shouldn't become unfindable just because you're already connected.
+        self.complete_profile(self.mentor)
+        self.complete_profile(self.student)
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        self.as_(self.mentor)
+        self.client.post(reverse("request-accept", args=[req.id]))
+
+        self.as_(self.student)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertNotIn(self.mentor.id, ids)
+
+        # Fetched fresh rather than via self.mentor.profile - force_authenticate
+        # reuses the same self.mentor instance across requests, so that cached
+        # relation can still be the blank profile from the avatar-upload step.
+        mentor_profile = Profile.objects.get(user=self.mentor)
+        ids = [m["id"] for m in self.client.get(reverse("professionals"), {"search": mentor_profile.name}).data["results"]]
+        self.assertIn(self.mentor.id, ids)
+
+        ids = [m["id"] for m in self.client.get(reverse("professionals"), {"company": mentor_profile.company}).data["results"]]
+        self.assertIn(self.mentor.id, ids)
+
     # --- requests / connections / messages ----------------------------------
 
     def test_full_request_to_message_flow(self):

@@ -147,7 +147,7 @@ export default function DiscoverPage() {
         {loading ? 'Searching…' : `${results.length}${hasMore ? '+' : ''} professional${results.length === 1 && !hasMore ? '' : 's'} found`}
       </p>
 
-      {loading ? (
+      {loading && results.length === 0 ? (
         <div className="pf-grid">
           {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
         </div>
@@ -157,7 +157,11 @@ export default function DiscoverPage() {
           <span>No one matches those filters yet. Try clearing a few.</span>
         </div>
       ) : (
-        <>
+        // Re-searching (typing a filter, toggling referrals) keeps the
+        // current cards on screen and just dims them instead of swapping to
+        // the skeleton grid - that swap-back-and-forth is what was reading
+        // as a flicker/blink, since it's not an actual page refresh.
+        <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .15s', pointerEvents: loading ? 'none' : undefined }}>
           <div className="pf-grid">
             {results.map(pro => {
               const isStudentType = Boolean(pro.university && pro.major);
@@ -204,7 +208,7 @@ export default function DiscoverPage() {
               </button>
             </p>
           )}
-        </>
+        </div>
       )}
     </>
   );

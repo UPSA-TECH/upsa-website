@@ -260,22 +260,29 @@ class ProfessionalListView(generics.ListAPIView):
         # Anyone with a fully completed profile is discoverable - student or
         # professional, not just the latter (see Profile.is_actually_complete).
         # A declined/cancelled request doesn't hide two people from each
-        # other; an actual connection does, since at that point they belong
-        # in each other's Connections list instead.
+        # other; an actual connection does, but only on the plain unfiltered
+        # browse - they already have their own spot in Connections. The
+        # moment someone actually searches or filters, they're looking for a
+        # specific person/criteria and a connection shouldn't vanish from
+        # those results just because they're already connected.
         user = self.request.user
-        connected_ids = set()
-        pairs = Connection.objects.filter(Q(member_a=user) | Q(member_b=user)).exclude(status="cancelled").values_list(
-            "member_a_id", "member_b_id"
-        )
-        for a, b in pairs:
-            connected_ids.add(b if a == user.id else a)
-
-        qs = (
-            Profile.objects.filter(onboarding_complete=True, deactivated=False)
-            .exclude(user=user)
-            .exclude(user_id__in=connected_ids)
-        )
         params = self.request.query_params
+        has_filters = bool(
+            params.get("search") or params.get("company") or params.get("industry")
+            or params.get("university") or params.get("referralsAvailable") == "true"
+        )
+
+        qs = Profile.objects.filter(onboarding_complete=True, deactivated=False).exclude(user=user)
+
+        if not has_filters:
+            connected_ids = set()
+            pairs = Connection.objects.filter(Q(member_a=user) | Q(member_b=user)).exclude(status="cancelled").values_list(
+                "member_a_id", "member_b_id"
+            )
+            for a, b in pairs:
+                connected_ids.add(b if a == user.id else a)
+            qs = qs.exclude(user_id__in=connected_ids)
+
         if search := params.get("search"):
             qs = qs.filter(
                 Q(name__icontains=search)
