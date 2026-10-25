@@ -467,7 +467,11 @@
 .portal-topbar-badge:hover { background: #dcebe0; transform: translateY(-1px); }
 .portal-sidebar-scrim { display: none; }
 
-.portal-content { padding: 32px 36px 80px; max-width: 1180px; animation: fadeIn .3s var(--ease-out); }
+/* No mount animation here on purpose - this wraps every page's content, so
+   it remounts (and would replay a fade-in) on every single portal
+   navigation, which is exactly the blink the stagger-animation removal
+   above was chasing, just one level higher up the tree. */
+.portal-content { padding: 32px 36px 80px; max-width: 1180px; }
 
 .portal-page-head { margin-bottom: 28px; }
 .portal-page-head h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 30px; color: var(--ink); letter-spacing: -.01em; }
@@ -548,16 +552,18 @@
 .status-completed { background: rgba(36,90,103,.12); color: #245A67; }
 
 /* ---------- Professional detail page ---------- */
-.pf-detail-head { display: flex; gap: 22px; align-items: center; margin-bottom: 26px; animation: fadeInUp .4s var(--ease-out); flex-wrap: wrap; }
+.pf-detail-head { display: flex; gap: 22px; align-items: center; margin-bottom: 26px; flex-wrap: wrap; }
 .pf-detail-info h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 30px; color: var(--ink); }
 .pf-detail-info .headline { font-size: 15px; color: var(--ink-3); margin-top: 4px; }
 .pf-detail-info .meta-line { font-size: 13px; color: var(--ink-3); margin-top: 10px; }
 .pf-detail-actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
 
+/* No mount animation here either - .detail-card is reused on Dashboard,
+   Profile, Settings, and this detail page, so it was replaying a fade-in on
+   every visit to any of them, same root cause as .portal-content above. */
 .detail-card {
   background: #fff; border-radius: var(--radius-lg); padding: 24px; margin-bottom: 18px;
   box-shadow: var(--shadow-sm); transition: box-shadow .25s, transform .25s;
-  animation: fadeInUp .45s var(--ease-out) backwards;
 }
 .detail-card:hover { box-shadow: var(--shadow-sm); }
 .detail-card h3 { font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
@@ -568,8 +574,12 @@
 
 .entry-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding-bottom: 14px; border-bottom: var(--hairline); }
 .entry-row:last-child { padding-bottom: 0; border-bottom: none; }
-.entry-row strong { font-size: 14.5px; color: var(--ink); }
-.entry-row .sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+/* Flex items default to min-width:auto, so a long school/company/credential
+   name wouldn't wrap - it'd just push entry-row-actions out past the card's
+   edge. Same min-width:0 escape hatch .pf-card-top/.conn-card-top already use. */
+.entry-row > div:first-child { min-width: 0; }
+.entry-row strong { font-size: 14.5px; color: var(--ink); overflow-wrap: anywhere; }
+.entry-row .sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; overflow-wrap: anywhere; }
 .entry-row-actions { display: flex; gap: 4px; flex: none; }
 
 /* ---------- Request / connection cards ---------- */

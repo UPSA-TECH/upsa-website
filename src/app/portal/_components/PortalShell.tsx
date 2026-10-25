@@ -40,6 +40,18 @@ export default function PortalShell({ children }: { children: React.ReactNode })
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Without this, the page behind the mobile nav overlay is still scrollable
+  // underneath it - dragging the menu open and scrolling the background at
+  // the same time is exactly what reads as "the whole screen moving".
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
   // Signing in (unlike signing up) skips onboarding, so send anyone who never
   // finished it there instead of showing an empty "New member" profile - and
   // send anyone whose profile predates the mandatory fields (bio, skills,
