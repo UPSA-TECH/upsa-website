@@ -1,4 +1,5 @@
 import io
+import uuid
 
 from django.core.files.base import ContentFile
 from django.db.models import Max, Q
@@ -212,7 +213,13 @@ def _avatar_thumbnail(upload):
         image = image.convert("RGBA" if "transparency" in image.info else "RGB")
     buffer = io.BytesIO()
     image.save(buffer, "WEBP", quality=82)
-    return ContentFile(buffer.getvalue(), name="avatar.webp")
+    # A random name, not a fixed "avatar.webp" - avatars are cached by
+    # browsers/CDN as immutable for a year (see storage.py), so reusing the
+    # same name on a later upload would mean the new photo never displays:
+    # the old cached bytes at that exact URL would never be re-fetched. A
+    # fixed name would also briefly collide with whatever's mid-cleanup from
+    # the previous replace (see portal/signals.py).
+    return ContentFile(buffer.getvalue(), name=f"{uuid.uuid4().hex}.webp")
 
 
 @api_view(["POST", "DELETE"])

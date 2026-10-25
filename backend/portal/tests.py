@@ -576,6 +576,20 @@ class UploadCleanupTests(APITestCase):
             self.client.delete(reverse("upload-avatar"))
         self.assertFalse(storage.exists(second))
 
+    def test_replacing_a_photo_three_times_never_reuses_a_url(self):
+        # Regression: each upload used to be named the fixed "avatar.webp",
+        # so once the first upload's file was cleaned up after the second
+        # replaced it, a third upload could collide back onto the first
+        # upload's exact URL - which browsers had already cached forever
+        # (avatars are served with an immutable, 1-year cache header), so the
+        # photo looked like it silently failed to update.
+        names = []
+        for _ in range(3):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.post(reverse("upload-avatar"), {"file": _fake_image()}, format="multipart")
+            names.append(Profile.objects.get(user=self.user).avatar.name)
+        self.assertEqual(len(set(names)), 3, names)
+
     def test_deleting_a_user_deletes_their_files(self):
         resume = self.upload_resume()
         with self.captureOnCommitCallbacks(execute=True):
