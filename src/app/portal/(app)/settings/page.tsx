@@ -44,20 +44,22 @@ export default function SettingsPage() {
       <div className="settings-section">
         <h2>Discoverability</h2>
         <p className="desc">
-          {currentUser.isProfessional
-            ? "You're listed as a mentor/professional, so you're automatically visible in Discover, no switch needed."
-            : <>Not listed yet. List yourself as a mentor/professional from your <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Profile</Link>.</>}
+          {currentUser.onboardingComplete && currentUser.visible
+            ? "Your profile is complete, so you're automatically visible in Discover."
+            : <>Finish your profile from your <Link href="/portal/profile" style={{ color: 'var(--moss)', fontWeight: 600 }}>Profile</Link> page to appear in Discover.</>}
         </p>
-        <div className="settings-row">
-          <div className="copy">
-            <strong>Open to referral conversations</strong>
-            <span>Shown as a note on your profile and offered as a request reason. A referral is never guaranteed, this only signals you&apos;re open to the conversation.</span>
+        {currentUser.isProfessional && (
+          <div className="settings-row">
+            <div className="copy">
+              <strong>Open to referral conversations</strong>
+              <span>Shown as a note on your profile and offered as a request reason. A referral is never guaranteed, this only signals you&apos;re open to the conversation.</span>
+            </div>
+            <label className="switch">
+              <input aria-label="Open to referral conversations" type="checkbox" checked={currentUser.referralsAvailable} onChange={e => toggleReferrals(e.target.checked)} />
+              <span className="track" />
+            </label>
           </div>
-          <label className="switch">
-            <input aria-label="Open to referral conversations" type="checkbox" checked={currentUser.referralsAvailable} onChange={e => toggleReferrals(e.target.checked)} />
-            <span className="track" />
-          </label>
-        </div>
+        )}
       </div>
 
       <div className="settings-section">

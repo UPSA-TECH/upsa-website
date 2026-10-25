@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Sparkles } from 'lucide-react';
-import { usePortalData } from '../../_lib/PortalDataProvider';
+import { PLACEHOLDER_NAME, usePortalData } from '../../_lib/PortalDataProvider';
 import type { Member } from '../../_lib/types';
 import Avatar from '../../_components/Avatar';
 import CardSkeleton from '../../_components/CardSkeleton';
@@ -40,8 +40,17 @@ export default function DashboardPage() {
     .slice(-4)
     .reverse();
 
-  const profileFieldsFilled = [currentUser.name, currentUser.university, currentUser.bio, currentUser.major].filter(Boolean).length;
-  const completeness = Math.round((profileFieldsFilled / 4) * 100);
+  // Mirrors the backend's Profile.is_actually_complete(): photo, name, bio,
+  // location, and either the student or the professional fields filled in.
+  const hasType = Boolean((currentUser.university && currentUser.major) || (currentUser.company && currentUser.role));
+  const completenessUnits = [
+    currentUser.hasAvatar,
+    Boolean(currentUser.name && currentUser.name !== PLACEHOLDER_NAME),
+    Boolean(currentUser.bio.trim()),
+    Boolean(currentUser.location?.trim()),
+    hasType,
+  ];
+  const completeness = Math.round((completenessUnits.filter(Boolean).length / completenessUnits.length) * 100);
 
   return (
     <>

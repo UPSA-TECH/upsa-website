@@ -125,7 +125,7 @@ export default function ProfilePage() {
           verified={currentUser.isProfessional}
         />
         <div>
-          <div style={{ marginBottom: 8 }}><RoleTag isProfessional={currentUser.isProfessional} /></div>
+          <div style={{ marginBottom: 8 }}><RoleTag isStudent={Boolean(currentUser.university && currentUser.major)} isProfessional={currentUser.isProfessional} /></div>
           <h1>{currentUser.name}</h1>
           <div className="sub">{currentUser.headline}</div>
           <p className="profile-head-note">This is what other members see when they view your profile.</p>

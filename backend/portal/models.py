@@ -57,11 +57,11 @@ class Profile(models.Model):
     deactivated = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
     flagged_for_review = models.BooleanField(default=False)
-    # Recomputed on every profile save (see portal.profile_completion) from
-    # name/avatar/bio/skills plus either the student or professional field
-    # set - this, not is_professional, is what gates Discover visibility.
-    # Stored rather than computed per-query since skills is a JSONField and
-    # "has at least one" isn't a portable filter across sqlite/postgres.
+    # Recomputed on every profile save from name/avatar/bio/location plus
+    # either the student or professional field set - this, not is_professional,
+    # is what gates Discover visibility. Stored rather than computed per-query
+    # since recomputing it needs application logic (is_actually_complete),
+    # not just a filter() clause.
     onboarding_complete = models.BooleanField(default=False)
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
 
@@ -73,12 +73,13 @@ class Profile(models.Model):
 
     def is_actually_complete(self):
         """Every field required to be listed in Discover: name, photo, bio,
-        at least one skill, and either the student fields or the
-        professional fields filled in (can be both, just not neither)."""
-        if not (self.name.strip() and self.avatar and self.bio.strip() and self.skills):
+        location, and either the student fields or the professional fields
+        filled in (can be both, just not neither). Skills and industry are
+        optional - never required to finish onboarding."""
+        if not (self.name.strip() and self.avatar and self.bio.strip() and self.location.strip()):
             return False
         is_student_done = bool(self.university.strip() and self.major.strip())
-        is_professional_done = bool(self.company.strip() and self.role.strip() and self.industry.strip())
+        is_professional_done = bool(self.company.strip() and self.role.strip())
         return is_student_done or is_professional_done
 
     def refresh_onboarding_complete(self):

@@ -30,17 +30,16 @@ class PortalApiTests(APITestCase):
 
     def complete_profile(self, user, **fields):
         """Fills in everything Profile.is_actually_complete() requires (name,
-        photo, bio, a skill, plus whichever of the student/professional
+        photo, bio, location, plus whichever of the student/professional
         field sets isn't overridden away), then applies any extra fields."""
         self.as_(user)
         self.client.post(reverse("upload-avatar"), {"file": _fake_image()}, format="multipart")
         payload = {
             "name": f"Member {user.id}",
             "bio": "Happy to chat.",
-            "skills": ["Networking"],
+            "location": "Remote",
             "company": "Acme",
             "role": "Engineer",
-            "industry": "Technology",
         }
         payload.update(fields)
         res = self.client.patch(reverse("my-profile"), payload, format="json")
@@ -165,7 +164,7 @@ class PortalApiTests(APITestCase):
 
     def test_discover_needs_a_fully_completed_profile(self):
         # Half-done doesn't count, even for a self-listed professional -
-        # name/photo/bio/skills are mandatory too, not just company+role.
+        # name/photo/bio/location are mandatory too, not just company+role.
         self.as_(self.mentor)
         self.client.patch(
             reverse("my-profile"),
@@ -176,7 +175,7 @@ class PortalApiTests(APITestCase):
         # A complete *student* profile is just as discoverable as a complete
         # professional one - Discover isn't segmented by which type you are.
         complete_student = User.objects.create(username="clerk:complete-student")
-        self.complete_profile(complete_student, company="", role="", industry="", university="UCF", major="CS")
+        self.complete_profile(complete_student, company="", role="", university="UCF", major="CS")
 
         complete_pro = User.objects.create(username="clerk:complete-pro")
         self.complete_profile(complete_pro)
@@ -188,6 +187,15 @@ class PortalApiTests(APITestCase):
         self.assertNotIn(self.mentor.id, ids)
         self.assertIn(complete_student.id, ids)
         self.assertIn(complete_pro.id, ids)
+
+    def test_skills_and_industry_are_optional_but_location_is_not(self):
+        no_skills_no_industry = User.objects.create(username="clerk:no-skills")
+        self.complete_profile(no_skills_no_industry, skills=[], industry="")
+        self.assertTrue(Profile.objects.get(user=no_skills_no_industry).onboarding_complete)
+
+        no_location = User.objects.create(username="clerk:no-location")
+        self.complete_profile(no_location, location="")
+        self.assertFalse(Profile.objects.get(user=no_location).onboarding_complete)
 
     def test_discover_never_shows_yourself(self):
         self.complete_profile(self.mentor)

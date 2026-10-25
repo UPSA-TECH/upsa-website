@@ -132,35 +132,43 @@ export default function DiscoverPage() {
       ) : (
         <>
           <div className="pf-grid">
-            {results.map(pro => (
-              <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
-                <div className="pf-card-top">
-                  <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
-                  <div>
-                    <div className="pf-card-name">{pro.name}</div>
-                    {(pro.role || pro.company) && (
-                      <div className="pf-card-headline">
-                        {pro.role && pro.company ? `${pro.role} · ${pro.company}` : pro.role || pro.company}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {(pro.university || pro.industry) && (
-                  <div className="pf-card-meta">
-                    {pro.university && <span>{pro.university}</span>}
-                    {pro.industry && <span>{pro.industry}</span>}
-                  </div>
-                )}
-                {pro.bio && <p className="pf-card-bio">{pro.bio}</p>}
-                {pro.referralsAvailable && (
-                  <div className="pf-card-foot">
-                    <div className="pf-card-avail">
-                      <span className="avail-pill referrals">Open to referrals</span>
+            {results.map(pro => {
+              const isStudentType = Boolean(pro.university && pro.major);
+              const isProfessionalType = Boolean(pro.company && pro.role);
+              return (
+                <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
+                  <div className="pf-card-top">
+                    <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
+                    <div>
+                      <div className="pf-card-name">{pro.name}</div>
+                      {(isStudentType || isProfessionalType) && (
+                        <div className="pf-card-role-labels">
+                          {isStudentType && <span>Student</span>}
+                          {isProfessionalType && <span>Professional</span>}
+                        </div>
+                      )}
+                      {isProfessionalType && (
+                        <div className="pf-card-headline">{pro.role} · {pro.company}</div>
+                      )}
                     </div>
                   </div>
-                )}
-              </Link>
-            ))}
+                  {isStudentType && (
+                    <div className="pf-card-meta">
+                      <span>{pro.university}</span>
+                      <span>{pro.major}</span>
+                    </div>
+                  )}
+                  {pro.bio && <p className="pf-card-bio">{pro.bio}</p>}
+                  {isProfessionalType && pro.referralsAvailable && (
+                    <div className="pf-card-foot">
+                      <div className="pf-card-avail">
+                        <span className="avail-pill referrals">Open to referrals</span>
+                      </div>
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
           </div>
           {hasMore && (
             <p style={{ textAlign: 'center', marginTop: 22 }}>

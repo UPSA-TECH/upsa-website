@@ -42,6 +42,8 @@ export default function ProfessionalDetail({ id }: { id: string }) {
 
   const existingRequest = state.requests.find(r => r.fromId === currentUserId && r.toId === id);
   const canRequest = !existingRequest || ['declined', 'cancelled'].includes(existingRequest.status);
+  const isStudentType = Boolean(professional.university && professional.major);
+  const isProfessionalType = Boolean(professional.company && professional.role);
 
   async function handleReport() {
     if (!window.confirm(`Report ${professional.name.split(' ')[0]}'s profile as fake or suspicious?`)) return;
@@ -69,10 +71,11 @@ export default function ProfessionalDetail({ id }: { id: string }) {
           verified={professional.isProfessional}
         />
         <div className="pf-detail-info">
-          <div style={{ marginBottom: 8 }}><RoleTag isProfessional={professional.isProfessional} /></div>
+          <div style={{ marginBottom: 8 }}><RoleTag isStudent={isStudentType} isProfessional={professional.isProfessional} /></div>
           <h1>{professional.name}</h1>
-          <div className="headline">{professional.role} &middot; {professional.company}</div>
-          <div className="meta-line">{professional.university} &middot; {professional.location} &middot; {professional.industry}</div>
+          {isProfessionalType && <div className="headline">{professional.role} &middot; {professional.company}</div>}
+          {isStudentType && <div className="headline">{professional.major} &middot; {professional.university}</div>}
+          {professional.location && <div className="meta-line">{professional.location}</div>}
         </div>
         <div className="pf-detail-actions">
           {justSent || (existingRequest && existingRequest.status === 'pending') ? (
@@ -96,7 +99,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
         <p>{professional.bio}</p>
       </div>
 
-      {professional.referralsAvailable && (
+      {isProfessionalType && professional.referralsAvailable && (
         <div className="detail-card">
           <h3>Open to</h3>
           <div className="pf-card-avail">
@@ -108,12 +111,14 @@ export default function ProfessionalDetail({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="detail-card">
-        <h3>Skills &amp; expertise</h3>
-        <div className="skill-pills">
-          {professional.skills.map(s => <span key={s}>{s}</span>)}
+      {professional.skills.length > 0 && (
+        <div className="detail-card">
+          <h3>Skills &amp; expertise</h3>
+          <div className="skill-pills">
+            {professional.skills.map(s => <span key={s}>{s}</span>)}
+          </div>
         </div>
-      </div>
+      )}
 
       {modalOpen && (
         <SendRequestModal

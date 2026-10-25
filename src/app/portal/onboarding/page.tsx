@@ -18,7 +18,7 @@ export default function OnboardingPage() {
   const toast = useToast();
   const [step, setStep] = useState(() => {
     if (!currentUser.hasAvatar || !currentUser.name) return 1;
-    const hasType = Boolean((currentUser.university && currentUser.major) || (currentUser.company && currentUser.role && currentUser.industry));
+    const hasType = Boolean((currentUser.university && currentUser.major) || (currentUser.company && currentUser.role));
     return hasType ? 3 : 2;
   });
   const [uploading, setUploading] = useState(false);
@@ -35,15 +35,27 @@ export default function OnboardingPage() {
   const [company, setCompany] = useState(currentUser.company ?? '');
   const [role, setRole] = useState(currentUser.role ?? '');
   const [industry, setIndustry] = useState(currentUser.industry ?? '');
+  const [location, setLocation] = useState(currentUser.location ?? '');
   const [bio, setBio] = useState(currentUser.bio);
   const [skillsText, setSkillsText] = useState(currentUser.skills.join(', '));
   const [agreedToTerms, setAgreedToTerms] = useState(currentUser.termsAccepted);
 
   const studentReady = !isStudent || (university.trim() && major.trim());
-  const professionalReady = !isProfessional || (company.trim() && role.trim() && industry.trim());
+  const professionalReady = !isProfessional || (company.trim() && role.trim());
   const typeReady = (isStudent || isProfessional) && studentReady && professionalReady;
   const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
-  const canFinish = name.trim() && typeReady && bio.trim() && skills.length > 0 && agreedToTerms;
+  const canFinish = name.trim() && typeReady && bio.trim() && location.trim() && agreedToTerms;
+
+  // Mirrors the backend's Profile.is_actually_complete() field set, for the
+  // progress bar - photo, name, bio, location, and either type's fields.
+  const progressUnits = [
+    Boolean(currentUser.hasAvatar || previewUrl),
+    Boolean(name.trim()),
+    Boolean(bio.trim()),
+    Boolean(location.trim()),
+    typeReady,
+  ];
+  const progressPercent = Math.round((progressUnits.filter(Boolean).length / progressUnits.length) * 100);
 
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -81,6 +93,7 @@ export default function OnboardingPage() {
         industry: isProfessional ? industry : '',
         isProfessional,
         bio,
+        location,
         skills,
         acceptTerms: agreedToTerms,
       });
@@ -105,6 +118,15 @@ export default function OnboardingPage() {
             <span className={step >= 1 ? 'done' : ''} />
             <span className={step >= 2 ? 'done' : ''} />
             <span className={step >= 3 ? 'done' : ''} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div className="progress-track">
+              <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'var(--ink-3)', flexShrink: 0 }}>
+              {progressPercent}% complete
+            </span>
           </div>
 
           {step === 1 && (
@@ -187,7 +209,7 @@ export default function OnboardingPage() {
                       </div>
                     </div>
                     <div className="field" style={{ marginLeft: 26 }}>
-                      <label htmlFor="industry">Industry</label>
+                      <label htmlFor="industry">Industry <span className="hint" style={{ fontWeight: 400 }}>(optional)</span></label>
                       <input id="industry" value={industry} onChange={e => setIndustry(e.target.value)} placeholder="e.g. Technology" />
                     </div>
                     <p className="hint" style={{ marginLeft: 26 }}>You&apos;ll be listed in Discover right away, no review wait.</p>
@@ -211,14 +233,18 @@ export default function OnboardingPage() {
           {step === 3 && (
             <>
               <h1>Tell people about yourself</h1>
-              <p className="sub">A short bio and a few skills so members know why to reach out - every profile needs these to be discoverable.</p>
+              <p className="sub">A short bio and your location so members know why and where to reach out.</p>
 
               <div className="field">
                 <label htmlFor="bio">Bio</label>
                 <textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="A couple sentences about your background and what you're looking for or can help with." />
               </div>
               <div className="field">
-                <label htmlFor="skills">Skills &amp; interests <span className="hint" style={{ fontWeight: 400 }}>(comma separated)</span></label>
+                <label htmlFor="location">Location</label>
+                <input id="location" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Seattle, WA" />
+              </div>
+              <div className="field">
+                <label htmlFor="skills">Skills &amp; interests <span className="hint" style={{ fontWeight: 400 }}>(optional, comma separated)</span></label>
                 <input id="skills" value={skillsText} onChange={e => setSkillsText(e.target.value)} placeholder="e.g. React, Product Management, Finance" />
               </div>
 
@@ -230,8 +256,8 @@ export default function OnboardingPage() {
                 </span>
               </label>
 
-              {!canFinish && (bio.trim() || skills.length > 0) && (
-                <p className="hint" style={{ marginBottom: 14 }}>A bio, at least one skill, and agreeing to the terms are all required.</p>
+              {!canFinish && (bio.trim() || location.trim()) && (
+                <p className="hint" style={{ marginBottom: 14 }}>A bio, your location, and agreeing to the terms are all required.</p>
               )}
 
               <div style={{ display: 'flex', gap: 10 }}>
