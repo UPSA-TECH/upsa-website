@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useClerk } from '@clerk/nextjs';
 import { LayoutDashboard, Compass, Inbox, Users, MessageSquare, UserCircle, Settings, LogOut, Menu, X, Bell, UserX } from 'lucide-react';
-import { PLACEHOLDER_NAME, usePortalData } from '../_lib/PortalDataProvider';
+import { usePortalData } from '../_lib/PortalDataProvider';
 import { ApiError } from '../_lib/api';
 import Avatar from './Avatar';
 import RoleTag from './RoleTag';
@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   { href: '/portal/discover', label: 'Discover', icon: Compass },
   { href: '/portal/requests', label: 'Requests', icon: Inbox, countKey: 'incoming' as const },
   { href: '/portal/connections', label: 'Connections', icon: Users },
-  { href: '/portal/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/portal/messages', label: 'Messages', icon: MessageSquare, countKey: 'messages' as const },
   { href: '/portal/profile', label: 'My Profile', icon: UserCircle },
   { href: '/portal/settings', label: 'Settings', icon: Settings },
 ];
@@ -26,7 +26,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useClerk();
-  const { currentUser, currentUserId, state, setDeactivated } = usePortalData();
+  const { currentUser, currentUserId, state, setDeactivated, unreadMessageCount } = usePortalData();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -40,8 +40,12 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   }, []);
 
   // Signing in (unlike signing up) skips onboarding, so send anyone who never
-  // finished it there instead of showing an empty "New member" profile.
-  const needsOnboarding = currentUser.name === PLACEHOLDER_NAME;
+  // finished it there instead of showing an empty "New member" profile - and
+  // send anyone whose profile predates the mandatory fields (bio, skills,
+  // photo) added later back through it too, since onboardingComplete covers
+  // both cases. Not a one-time thing: it stays enforced on every visit until
+  // the profile actually is complete.
+  const needsOnboarding = !currentUser.onboardingComplete;
   useEffect(() => {
     if (needsOnboarding) router.replace('/portal/onboarding');
   }, [needsOnboarding, router]);
@@ -89,6 +93,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               >
                 <span className="portal-nav-label"><Icon size={18} strokeWidth={2} />{item.label}</span>
                 {item.countKey === 'incoming' && incomingCount > 0 && <span className="count">{incomingCount}</span>}
+                {item.countKey === 'messages' && unreadMessageCount > 0 && <span className="count">{unreadMessageCount}</span>}
               </Link>
             );
           })}

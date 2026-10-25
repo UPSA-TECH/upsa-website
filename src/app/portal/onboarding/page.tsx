@@ -16,7 +16,11 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { currentUser, updateProfile, uploadAvatar } = usePortalData();
   const toast = useToast();
-  const [step, setStep] = useState(currentUser.hasAvatar ? 2 : 1);
+  const [step, setStep] = useState(() => {
+    if (!currentUser.hasAvatar || !currentUser.name) return 1;
+    const hasType = Boolean((currentUser.university && currentUser.major) || (currentUser.company && currentUser.role && currentUser.industry));
+    return hasType ? 3 : 2;
+  });
   const [uploading, setUploading] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -31,10 +35,15 @@ export default function OnboardingPage() {
   const [company, setCompany] = useState(currentUser.company ?? '');
   const [role, setRole] = useState(currentUser.role ?? '');
   const [industry, setIndustry] = useState(currentUser.industry ?? '');
+  const [bio, setBio] = useState(currentUser.bio);
+  const [skillsText, setSkillsText] = useState(currentUser.skills.join(', '));
+  const [agreedToTerms, setAgreedToTerms] = useState(currentUser.termsAccepted);
 
   const studentReady = !isStudent || (university.trim() && major.trim());
-  const professionalReady = !isProfessional || (company.trim() && role.trim());
-  const canFinish = name.trim() && (isStudent || isProfessional) && studentReady && professionalReady;
+  const professionalReady = !isProfessional || (company.trim() && role.trim() && industry.trim());
+  const typeReady = (isStudent || isProfessional) && studentReady && professionalReady;
+  const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
+  const canFinish = name.trim() && typeReady && bio.trim() && skills.length > 0 && agreedToTerms;
 
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -71,6 +80,9 @@ export default function OnboardingPage() {
         role: isProfessional ? role : '',
         industry: isProfessional ? industry : '',
         isProfessional,
+        bio,
+        skills,
+        acceptTerms: agreedToTerms,
       });
       router.push('/portal/dashboard');
     } catch (err) {
@@ -92,6 +104,7 @@ export default function OnboardingPage() {
           <div className="onboarding-steps">
             <span className={step >= 1 ? 'done' : ''} />
             <span className={step >= 2 ? 'done' : ''} />
+            <span className={step >= 3 ? 'done' : ''} />
           </div>
 
           {step === 1 && (
@@ -188,6 +201,41 @@ export default function OnboardingPage() {
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn-outline" onClick={() => setStep(1)}>Back</button>
+                <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setStep(3)} disabled={!typeReady}>
+                  Continue &rarr;
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <h1>Tell people about yourself</h1>
+              <p className="sub">A short bio and a few skills so members know why to reach out - every profile needs these to be discoverable.</p>
+
+              <div className="field">
+                <label htmlFor="bio">Bio</label>
+                <textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="A couple sentences about your background and what you're looking for or can help with." />
+              </div>
+              <div className="field">
+                <label htmlFor="skills">Skills &amp; interests <span className="hint" style={{ fontWeight: 400 }}>(comma separated)</span></label>
+                <input id="skills" value={skillsText} onChange={e => setSkillsText(e.target.value)} placeholder="e.g. React, Product Management, Finance" />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '18px 0', cursor: 'pointer' }}>
+                <input type="checkbox" checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} style={{ marginTop: 3 }} />
+                <span className="sub" style={{ margin: 0 }}>
+                  I agree to the <Link href="/terms" target="_blank" className="portal-guest-back" style={{ display: 'inline' }}>Terms of Service</Link> and{' '}
+                  <Link href="/privacy" target="_blank" className="portal-guest-back" style={{ display: 'inline' }}>Privacy Policy</Link>.
+                </span>
+              </label>
+
+              {!canFinish && (bio.trim() || skills.length > 0) && (
+                <p className="hint" style={{ marginBottom: 14 }}>A bio, at least one skill, and agreeing to the terms are all required.</p>
+              )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-outline" onClick={() => setStep(2)}>Back</button>
                 <button className="btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={finish} disabled={!canFinish || finishing}>
                   {finishing ? 'Finishing…' : 'Finish setup →'}
                 </button>
