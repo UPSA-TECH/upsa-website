@@ -63,6 +63,15 @@ class MyProfileView(generics.RetrieveUpdateAPIView):
         profile, _ = Profile.objects.get_or_create(user=self.request.user)
         return profile
 
+    def delete(self, request, *args, **kwargs):
+        # The whole account, not just the profile - cascades to education,
+        # experience, certifications, connections, requests and messages, and
+        # (via portal.signals) the avatar and any shared resume files on R2.
+        # This only removes the backend side; the frontend also calls Clerk's
+        # own self-serve deletion so the auth account itself goes away too.
+        request.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class MemberProfileView(generics.RetrieveAPIView):
     serializer_class = ProfileSerializer

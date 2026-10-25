@@ -63,6 +63,27 @@ class PortalApiTests(APITestCase):
         self.assertEqual(res.data["bio"], "Backend curious junior")
         self.assertEqual(res.data["referralsAvailable"], True)
 
+    def test_deleting_my_account_removes_everything_attached_to_it(self):
+        self.as_(self.student)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("upload-avatar"), {"file": _fake_image()}, format="multipart")
+        avatar_name, storage = Profile.objects.get(user=self.student).avatar.name, avatar_storage()
+
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect")
+        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
+        Message.objects.create(connection=connection, sender=self.student, text="hi")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            res = self.client.delete(reverse("my-profile"))
+        self.assertEqual(res.status_code, 204)
+
+        self.assertFalse(User.objects.filter(pk=self.student.id).exists())
+        self.assertFalse(Profile.objects.filter(user_id=self.student.id).exists())
+        self.assertFalse(ConnectionRequest.objects.filter(pk=req.id).exists())
+        self.assertFalse(Connection.objects.filter(pk=connection.id).exists())
+        self.assertFalse(Message.objects.filter(connection_id=connection.id).exists())
+        self.assertFalse(storage.exists(avatar_name))
+
     def test_cannot_list_yourself_without_company_and_role(self):
         self.as_(self.student)
         res = self.client.patch(reverse("my-profile"), {"isProfessional": True}, format="json")

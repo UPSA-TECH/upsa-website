@@ -352,6 +352,7 @@ type PortalContextValue = {
   shareResumeWithConnection: (connectionId: string, file: File) => Promise<void>;
   reportMember: (memberId: string, reason?: string) => Promise<void>;
   setDeactivated: (value: boolean) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   loadMember: (id: string) => Promise<Member | null>;
   loadProfessionals: (filters: ProfessionalFilters, page?: number) => Promise<ProfessionalPage>;
   loadMessages: (connectionId: string) => Promise<void>;
@@ -936,6 +937,14 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
+  // Backend side only - cascades to everything (education, experience,
+  // certifications, connections, requests, messages, files on R2). The
+  // caller is also responsible for deleting the Clerk account itself
+  // (Clerk's own self-serve user.delete()), since this never touches Clerk.
+  const deleteAccount = useCallback(async () => {
+    await call<void>('/api/members/me/', { method: 'DELETE' });
+  }, [call]);
+
   const isConnectionUnread = useCallback(
     (connectionId: string) => {
       const c = state.connections.find(con => con.id === connectionId);
@@ -989,6 +998,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     shareResumeWithConnection,
     reportMember,
     setDeactivated,
+    deleteAccount,
     loadMember,
     loadProfessionals,
     loadMessages,

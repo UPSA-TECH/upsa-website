@@ -1,15 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { useToast } from '../../_components/Toast';
 import { ApiError } from '../../_lib/api';
 
 export default function SettingsPage() {
-  const { currentUser, updateProfile, setDeactivated } = usePortalData();
+  const { currentUser, updateProfile, setDeactivated, deleteAccount } = usePortalData();
   const { user } = useUser();
+  const router = useRouter();
   const toast = useToast();
+  const [deleting, setDeleting] = useState(false);
 
   async function toggleReferrals(value: boolean) {
     try {
@@ -26,6 +30,27 @@ export default function SettingsPage() {
       toast('Account deactivated.', 'success');
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Could not deactivate your account. Try again.', 'error');
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (
+      !window.confirm(
+        'Permanently delete your account? This removes your profile, connections, messages, resumes and photo. This cannot be undone.'
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      // Backend first: if this fails, nothing's gone and the user can retry.
+      // Clerk's own account goes second and signs them out as part of it.
+      await deleteAccount();
+      await user?.delete();
+      router.push('/');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not delete your account. Try again or contact us.', 'error');
+      setDeleting(false);
     }
   }
 
@@ -111,6 +136,17 @@ export default function SettingsPage() {
         <h2>Deactivate account</h2>
         <p className="desc">Your profile stops appearing in Discover. You can reactivate any time.</p>
         <button className="btn-outline btn-sm" onClick={handleDeactivate}>Deactivate account</button>
+      </div>
+
+      <div className="settings-section danger-zone">
+        <h2>Delete account</h2>
+        <p className="desc">
+          Permanently removes your profile, education, experience, certifications, connections, requests, messages, resumes and
+          photo from our systems, and deletes your sign-in account. There is no undo.
+        </p>
+        <button className="btn-outline btn-sm" onClick={handleDeleteAccount} disabled={deleting} style={{ borderColor: '#B23B3B', color: '#B23B3B' }}>
+          {deleting ? 'Deleting…' : 'Delete account permanently'}
+        </button>
       </div>
     </>
   );
