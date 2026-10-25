@@ -13,12 +13,21 @@ import { useToast } from '../../_components/Toast';
 const EMPTY_TEXT = { search: '', company: '', industry: '', university: '' };
 
 export default function DiscoverPage() {
-  const { loadProfessionals } = usePortalData();
+  const { loadProfessionals, getCachedProfessionals } = usePortalData();
   const toast = useToast();
-  const [results, setResults] = useState<Member[]>([]);
+  // Dashboard fetches this exact unfiltered query too - if it (or an earlier
+  // visit to this page) already ran this session, show it immediately
+  // instead of blanking to a skeleton, so switching back and forth between
+  // Dashboard and Discover doesn't re-flash a loading state for data that's
+  // already sitting right there. Only used for the initial render and the
+  // search effect's very first run (see hasMountedRef below), so it doesn't
+  // matter that this isn't re-evaluated after that.
+  const initialCache = getCachedProfessionals();
+  const hasMountedRef = useRef(false);
+  const [results, setResults] = useState<Member[]>(() => initialCache ?? []);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => initialCache === null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // What's typed right now vs. what's been sent to the server (debounced, so
@@ -53,10 +62,15 @@ export default function DiscoverPage() {
 
   useEffect(() => {
     const id = ++searchId.current;
+    const isDefaultQuery = !applied.search && !applied.company && !applied.industry && !applied.university && !referralsOnly;
+    // Only the very first run, and only when it's the exact cached query, can
+    // skip the loading flash - an actual search (or any later refetch) still
+    // shows it, that's real "fetching new results" feedback, not a false blink.
+    const skipLoadingFlash = !hasMountedRef.current && isDefaultQuery && initialCache !== null;
+    hasMountedRef.current = true;
     // A fresh search is starting - not derivable from existing state, so this
     // has to be an explicit flag rather than a computed value.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true);
+    if (!skipLoadingFlash) setLoading(true);
     loadProfessionals({ ...applied, referralsAvailable: referralsOnly })
       .then(res => {
         if (searchId.current !== id) return;

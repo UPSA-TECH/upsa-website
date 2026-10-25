@@ -10,19 +10,30 @@ import CardSkeleton from '../../_components/CardSkeleton';
 import StatusPill from '../../_components/StatusPill';
 
 export default function DashboardPage() {
-  const { currentUser, currentUserId, state, loadProfessionals } = usePortalData();
-  const [suggested, setSuggested] = useState<Member[]>([]);
-  const [suggestedLoading, setSuggestedLoading] = useState(true);
+  const { currentUser, currentUserId, state, loadProfessionals, getCachedProfessionals } = usePortalData();
+
+  function pickSuggested(list: Member[]): Member[] {
+    const alreadyInTouch = new Set([
+      ...state.requests.map(r => (r.fromId === currentUserId ? r.toId : r.fromId)),
+      ...state.connections.flatMap(c => c.memberIds),
+    ]);
+    return list.filter(m => m.id !== currentUserId && !alreadyInTouch.has(m.id)).slice(0, 3);
+  }
+
+  // Dashboard and Discover both start from the same unfiltered query, so if
+  // Discover (or an earlier Dashboard visit) already fetched it this
+  // session, show that immediately instead of blanking to a skeleton and
+  // re-fetching every time you switch back here.
+  const cached = getCachedProfessionals();
+  const [suggested, setSuggested] = useState<Member[]>(() => (cached ? pickSuggested(cached) : []));
+  const [suggestedLoading, setSuggestedLoading] = useState(() => cached === null);
 
   useEffect(() => {
+    // Still refreshes in the background even when cached data was shown
+    // right away, so the suggestions don't go stale for the rest of the
+    // session - it just doesn't flash a loading state to do it.
     loadProfessionals({})
-      .then(({ members: list }) => {
-        const alreadyInTouch = new Set([
-          ...state.requests.map(r => (r.fromId === currentUserId ? r.toId : r.fromId)),
-          ...state.connections.flatMap(c => c.memberIds),
-        ]);
-        setSuggested(list.filter(m => m.id !== currentUserId && !alreadyInTouch.has(m.id)).slice(0, 3));
-      })
+      .then(({ members: list }) => setSuggested(pickSuggested(list)))
       .finally(() => setSuggestedLoading(false));
     // Only ever needs to run once on mount, against whatever's already loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps

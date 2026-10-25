@@ -356,6 +356,7 @@ type PortalContextValue = {
   deleteAccount: () => Promise<void>;
   loadMember: (id: string) => Promise<Member | null>;
   loadProfessionals: (filters: ProfessionalFilters, page?: number) => Promise<ProfessionalPage>;
+  getCachedProfessionals: () => Member[] | null;
   loadMessages: (connectionId: string) => Promise<void>;
   isConnectionUnread: (connectionId: string) => boolean;
   unreadMessageCount: number;
@@ -416,6 +417,12 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
   // with data fetched just before it.
   const writeVersion = useRef(0);
   const knownMembers = useRef<Record<string, Member>>({});
+  // The unfiltered, page-1 professionals list - both Dashboard (suggestions)
+  // and Discover (before any search is typed) start from exactly this query,
+  // so caching it here means switching back and forth between those two
+  // pages can show it instantly instead of blanking to a loading skeleton
+  // and re-fetching every single time.
+  const defaultProfessionalsRef = useRef<Member[] | null>(null);
   const syncVersion = useRef<string | null>(null);
 
   // Kept in a ref so `call` (and everything built on it) has a permanently
@@ -669,10 +676,15 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         });
         return { ...prev, members };
       });
+      if (page === 1 && !Object.values(filters).some(Boolean)) {
+        defaultProfessionalsRef.current = list;
+      }
       return { members: list, hasMore: !Array.isArray(data) && Boolean(data.next) };
     },
     [call]
   );
+
+  const getCachedProfessionals = useCallback(() => defaultProfessionalsRef.current, []);
 
   const sendRequest = useCallback(
     async (toId: string, requestType: RequestType, message: string) => {
@@ -1013,6 +1025,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     deleteAccount,
     loadMember,
     loadProfessionals,
+    getCachedProfessionals,
     loadMessages,
     isConnectionUnread,
     unreadMessageCount,
