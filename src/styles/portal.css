@@ -503,8 +503,10 @@
 /* ---------- Discover grid / professional card ---------- */
 .pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
 .pf-card {
-  background: var(--moss-soft); padding: 22px; display: flex; flex-direction: column; gap: 14px;
-  height: 270px; overflow: hidden;
+  background: var(--moss-deep);
+  background-image: radial-gradient(ellipse 120% 60% at 0% 0%, rgba(44,104,68,.35), transparent 60%);
+  padding: 20px; display: flex; flex-direction: column; gap: 12px;
+  height: 236px; overflow: hidden;
   border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
   transition: transform .3s var(--ease-out), box-shadow .3s var(--ease-out);
 }
@@ -512,17 +514,18 @@
 .pf-card:active { transform: translateY(-2px); }
 .pf-card-top { display: flex; gap: 14px; align-items: flex-start; }
 .pf-card-top > div { min-width: 0; }
-.pf-card-top .avatar { width: 56px; height: 56px; font-size: 17px; }
-.pf-card-name { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-card-headline { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
-.pf-card-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: var(--ink-3); }
-.pf-card-meta span { background: var(--paper-deep); padding: 3px 9px; border-radius: 999px; }
+.pf-card-top .avatar { width: 64px; height: 64px; font-size: 18px; }
+.pf-card-name { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-card-headline { font-size: 12.5px; color: rgba(255,255,255,.65); margin-top: 2px; line-height: 1.4; }
+.pf-card-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: rgba(255,255,255,.6); }
+.pf-card-meta span { background: rgba(255,255,255,.12); color: rgba(255,255,255,.78); padding: 3px 9px; border-radius: 999px; }
 .pf-card-bio {
-  font-size: 13px; color: var(--ink-2); line-height: 1.6; flex: 1;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  font-size: 13px; color: rgba(255,255,255,.72); line-height: 1.6; flex: 1;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .pf-card-avail { display: flex; gap: 6px; flex-wrap: wrap; }
 .pf-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; }
+.pf-card .avail-pill.referrals { background: rgba(255,255,255,.14); color: #E8C36B; }
 
 .avail-pill {
   font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
