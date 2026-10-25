@@ -795,6 +795,41 @@
 .danger-zone { border: 1px solid rgba(140,59,46,.35); border-radius: var(--radius-lg); padding: 20px; background: rgba(140,59,46,.04); }
 .danger-zone h2 { color: #8C3B2E; }
 
+/* ---------- Bug report tab ---------- */
+.bug-tab {
+  all: unset;
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg) translateX(50%);
+  transform-origin: right center;
+  cursor: pointer;
+  z-index: 90;
+  background: var(--moss-deep);
+  color: #fff;
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  border-radius: 8px 8px 0 0;
+  box-shadow: var(--shadow-sm);
+  transition: background .2s, padding .2s;
+}
+.bug-tab:hover { background: var(--moss); padding: 10px 20px; }
+
+@media (max-width: 860px) {
+  .bug-tab {
+    right: auto;
+    left: 50%;
+    top: auto;
+    bottom: 0;
+    transform: translateX(-50%);
+    border-radius: 8px 8px 0 0;
+  }
+  .bug-tab:hover { padding: 10px 16px; }
+}
+
 /* ---------- Modal ---------- */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(14,44,27,.45); backdrop-filter: blur(3px);

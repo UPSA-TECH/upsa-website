@@ -169,6 +169,23 @@ class ProfileReport(models.Model):
         return f"{self.reporter_id} reported {self.reported_id}"
 
 
+class BugReport(models.Model):
+    """A free-text bug report from the little side-tab form in the portal.
+    Read in the admin, not acted on automatically - no status/severity
+    workflow, this is meant to be low-friction for whoever's testing."""
+
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bug_reports")
+    description = models.TextField(max_length=2000)
+    page_url = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reporter_id}: {self.description[:50]}"
+
+
 class ConnectionRequest(models.Model):
     from_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sent_requests")
     to_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="received_requests")

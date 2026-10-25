@@ -14,6 +14,7 @@ urlpatterns = [
     path("members/me/certifications/<int:pk>/", views.CertificationDetailView.as_view(), name="certifications-detail"),
     path("members/<int:user_id>/", views.MemberProfileView.as_view(), name="member-profile"),
     path("members/<int:user_id>/report/", views.report_member, name="member-report"),
+    path("bug-reports/", views.submit_bug_report, name="bug-report-submit"),
     path("sync/", views.sync, name="sync"),
     path("professionals/", views.ProfessionalListView.as_view(), name="professionals"),
     path("requests/", views.ConnectionRequestListCreateView.as_view(), name="requests"),

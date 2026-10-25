@@ -351,6 +351,7 @@ type PortalContextValue = {
   downloadResumeById: (resumeId: string, fileName: string) => Promise<void>;
   shareResumeWithConnection: (connectionId: string, file: File) => Promise<void>;
   reportMember: (memberId: string, reason?: string) => Promise<void>;
+  submitBugReport: (description: string, pageUrl: string) => Promise<void>;
   setDeactivated: (value: boolean) => Promise<void>;
   deleteAccount: () => Promise<void>;
   loadMember: (id: string) => Promise<Member | null>;
@@ -925,6 +926,16 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
+  const submitBugReport = useCallback(
+    async (description: string, pageUrl: string) => {
+      await call<void>('/api/bug-reports/', {
+        method: 'POST',
+        body: JSON.stringify({ description, pageUrl }),
+      });
+    },
+    [call]
+  );
+
   const setDeactivated = useCallback(
     async (value: boolean) => {
       const updated = await call<ApiProfile>('/api/members/me/', {
@@ -997,6 +1008,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     removeAvatar,
     shareResumeWithConnection,
     reportMember,
+    submitBugReport,
     setDeactivated,
     deleteAccount,
     loadMember,

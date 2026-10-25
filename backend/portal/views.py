@@ -17,6 +17,7 @@ from django.db import IntegrityError, transaction
 from . import notifications
 from .models import (
     REPORTS_TO_FLAG,
+    BugReport,
     Certification,
     Connection,
     ConnectionRequest,
@@ -168,6 +169,19 @@ def report_member(request, user_id):
 
 
 report_member.cls.throttle_scope = "reports"
+
+
+@api_view(["POST"])
+def submit_bug_report(request):
+    description = (request.data.get("description") or "").strip()
+    if not description:
+        raise ValidationError("Description can't be empty.")
+    page_url = (request.data.get("pageUrl") or "")[:500]
+    BugReport.objects.create(reporter=request.user, description=description[:2000], page_url=page_url)
+    return Response(status=status.HTTP_201_CREATED)
+
+
+submit_bug_report.cls.throttle_scope = "bug_reports"
 
 
 AVATAR_SIZE = 256

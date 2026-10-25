@@ -10,6 +10,7 @@ import { ApiError } from '../_lib/api';
 import Avatar from './Avatar';
 import RoleTag from './RoleTag';
 import BrandMark from './BrandMark';
+import BugReportWidget from './BugReportWidget';
 import { useToast } from './Toast';
 
 const NAV_ITEMS = [
@@ -141,6 +142,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
       </div>
 
       {open && <div className="portal-sidebar-scrim" onClick={() => setOpen(false)} aria-hidden="true" />}
+      <BugReportWidget />
     </div>
   );
 }

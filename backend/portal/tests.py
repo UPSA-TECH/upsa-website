@@ -150,6 +150,28 @@ class PortalApiTests(APITestCase):
             self.client.post(reverse("member-report", args=[self.mentor.id]), format="json")
         self.assertTrue(Profile.objects.get(user=self.mentor).flagged_for_review)
 
+    # --- bug reports -----------------------------------------------------
+
+    def test_submitting_a_bug_report(self):
+        self.as_(self.student)
+        res = self.client.post(
+            reverse("bug-report-submit"),
+            {"description": "the discover page is blank", "pageUrl": "/portal/discover"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201)
+        from .models import BugReport
+
+        report = BugReport.objects.get()
+        self.assertEqual(report.reporter, self.student)
+        self.assertEqual(report.description, "the discover page is blank")
+        self.assertEqual(report.page_url, "/portal/discover")
+
+    def test_bug_report_needs_a_description(self):
+        self.as_(self.student)
+        res = self.client.post(reverse("bug-report-submit"), {"pageUrl": "/portal/discover"}, format="json")
+        self.assertEqual(res.status_code, 400)
+
     def test_avatar_upload_validation(self):
         self.as_(self.student)
 

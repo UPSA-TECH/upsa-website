@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Connection, ConnectionRequest, Message, Profile, ProfileReport, Resume
+from .models import BugReport, Connection, ConnectionRequest, Message, Profile, ProfileReport, Resume
 
 
 @admin.register(Profile)
@@ -44,6 +44,17 @@ class ProfileReportAdmin(admin.ModelAdmin):
     search_fields = ["reported__username", "reporter__username", "reason"]
     ordering = ["-created_at"]
     readonly_fields = ["reporter", "reported", "reason", "created_at"]
+
+
+@admin.register(BugReport)
+class BugReportAdmin(admin.ModelAdmin):
+    list_display = ["reporter", "short_description", "page_url", "created_at"]
+    search_fields = ["reporter__username", "description", "page_url"]
+    ordering = ["-created_at"]
+    readonly_fields = ["reporter", "description", "page_url", "created_at"]
+
+    def short_description(self, obj):
+        return obj.description[:80] + ("…" if len(obj.description) > 80 else "")
 
 
 admin.site.register(ConnectionRequest)
