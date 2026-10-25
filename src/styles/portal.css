@@ -796,13 +796,17 @@
 .danger-zone h2 { color: #8C3B2E; }
 
 /* ---------- Bug report tab ---------- */
+/* writing-mode instead of rotate()+translateX() - the transform math for a
+   rotated edge tab is easy to get subtly wrong and clip part of the element
+   past the viewport edge; this has no horizontal transform at all, so it
+   can't get cut off, on desktop or mobile. */
 .bug-tab {
   all: unset;
   position: fixed;
   right: 0;
   top: 50%;
-  transform: translateY(-50%) rotate(-90deg) translateX(50%);
-  transform-origin: right center;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
   cursor: pointer;
   z-index: 90;
   background: var(--moss-deep);
@@ -811,23 +815,16 @@
   font-size: 11px;
   letter-spacing: .12em;
   text-transform: uppercase;
-  padding: 10px 16px;
-  border-radius: 8px 8px 0 0;
+  padding: 16px 10px;
+  border-radius: 8px 0 0 8px;
   box-shadow: var(--shadow-sm);
   transition: background .2s, padding .2s;
 }
-.bug-tab:hover { background: var(--moss); padding: 10px 20px; }
+.bug-tab:hover { background: var(--moss); padding: 20px 10px; }
 
 @media (max-width: 860px) {
-  .bug-tab {
-    right: auto;
-    left: 50%;
-    top: auto;
-    bottom: 0;
-    transform: translateX(-50%);
-    border-radius: 8px 8px 0 0;
-  }
-  .bug-tab:hover { padding: 10px 16px; }
+  .bug-tab { font-size: 10.5px; padding: 14px 8px; }
+  .bug-tab:hover { padding: 16px 8px; }
 }
 
 /* ---------- Modal ---------- */

@@ -315,24 +315,47 @@ class ConnectionRequestListCreateView(generics.ListCreateAPIView):
         if to_user_id == user.id:
             raise ValidationError("You can't send a request to yourself.")
 
-        open_between = ConnectionRequest.objects.filter(status="pending").filter(
-            Q(from_user=user, to_user_id=to_user_id) | Q(from_user_id=to_user_id, to_user=user)
-        )
-        if open_between.exists():
-            raise ValidationError("There's already an open request between you two.")
+        # A plain "does an open request already exist" check has a race: two
+        # near-simultaneous sends (a double-click, a flaky retry) can both
+        # pass it before either has committed. Locking both users' rows first
+        # - in a stable, lowest-id-first order so two opposite-direction
+        # sends at the same moment can't deadlock each other - makes a second
+        # concurrent send wait here until the first one has actually
+        # committed, so it sees the real up-to-date state.
+        with transaction.atomic():
+            list(
+                get_user_model()
+                .objects.select_for_update()
+                .filter(pk__in=sorted([user.id, to_user_id]))
+                .order_by("pk")
+            )
 
-        notifications.request_received(serializer.save(from_user=user))
+            open_between = ConnectionRequest.objects.filter(status="pending").filter(
+                Q(from_user=user, to_user_id=to_user_id) | Q(from_user_id=to_user_id, to_user=user)
+            )
+            if open_between.exists():
+                raise ValidationError("There's already an open request between you two.")
+
+            notifications.request_received(serializer.save(from_user=user))
 
 
 @api_view(["POST"])
 def accept_request(request, pk):
-    req = get_object_or_404(ConnectionRequest, pk=pk, to_user=request.user, status="pending")
-    req.status = "accepted"
-    req.save(update_fields=["status", "updated_at"])
-    # Accepting is the whole lifecycle now - there's no separate "mark
-    # complete" step after the fact (see cancel_connection for the only
-    # other state a connection can move to).
-    connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="completed")
+    # select_for_update + status="pending" closes the race a plain get()
+    # would leave open: two near-simultaneous accepts (a double-click, two
+    # open tabs) could otherwise both read status="pending" before either
+    # commits, and the second would crash on the Connection's one-to-one
+    # constraint instead of cleanly 404ing.
+    with transaction.atomic():
+        req = get_object_or_404(
+            ConnectionRequest.objects.select_for_update(), pk=pk, to_user=request.user, status="pending"
+        )
+        req.status = "accepted"
+        req.save(update_fields=["status", "updated_at"])
+        # Accepting is the whole lifecycle now - there's no separate "mark
+        # complete" step after the fact (see cancel_connection for the only
+        # other state a connection can move to).
+        connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="completed")
     notifications.request_accepted(req)
     return Response(ConnectionSerializer(connection).data, status=status.HTTP_201_CREATED)
 

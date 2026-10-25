@@ -359,6 +359,22 @@ class PortalApiTests(APITestCase):
         blocked_msg = self.client.post(reverse("connection-messages", args=[connection_id]), {"text": "still there?"}, format="json")
         self.assertEqual(blocked_msg.status_code, 400)
 
+    def test_accepting_an_already_accepted_request_404s_instead_of_crashing(self):
+        # Simulates the second half of a double-accept race: by the time this
+        # runs, the request is no longer "pending", which is exactly the
+        # state a concurrent accept would leave behind.
+        self.as_(self.student)
+        res = self.client.post(reverse("requests"), {"toId": self.mentor.id, "requestType": "connect", "message": "hi"}, format="json")
+        request_id = res.data["id"]
+
+        self.as_(self.mentor)
+        first = self.client.post(reverse("request-accept", args=[request_id]))
+        self.assertEqual(first.status_code, 201)
+
+        second = self.client.post(reverse("request-accept", args=[request_id]))
+        self.assertEqual(second.status_code, 404)
+        self.assertEqual(Connection.objects.filter(request_id=request_id).count(), 1)
+
     # --- resume --------------------------------------------------------------
 
     def test_resume_upload_validation_and_sharing(self):

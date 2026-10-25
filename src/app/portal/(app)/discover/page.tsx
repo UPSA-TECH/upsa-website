@@ -32,7 +32,20 @@ export default function DiscoverPage() {
   const searchId = useRef(0);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setApplied({ ...text, search: text.search.trim() }), 300);
+    const timer = window.setTimeout(() => {
+      const next = { ...text, search: text.search.trim() };
+      // Bail out if nothing actually changed (e.g. the debounce firing once on
+      // mount with the same empty filters) - setting a new-but-equal object
+      // still re-triggers the search effect below since it compares by
+      // reference, which was showing up as the results grid flashing back to
+      // its loading skeleton right after the page had already loaded.
+      setApplied(prev =>
+        prev.search === next.search && prev.company === next.company &&
+        prev.industry === next.industry && prev.university === next.university
+          ? prev
+          : next
+      );
+    }, 300);
     return () => window.clearTimeout(timer);
   }, [text]);
 
