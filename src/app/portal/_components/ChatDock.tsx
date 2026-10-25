@@ -8,7 +8,7 @@ import { useChatWidget } from '../_lib/ChatWidgetProvider';
 import ChatPopup from './ChatPopup';
 
 export default function ChatDock() {
-  const { state, currentUserId } = usePortalData();
+  const { state, currentUserId, isConnectionUnread } = usePortalData();
   const { openChats, minimized, openChat, toggleMinimize } = useChatWidget();
 
   const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId));
@@ -46,7 +46,10 @@ export default function ChatDock() {
                       if (minimized[c.id]) toggleMinimize(c.id);
                     }}
                   >
-                    <span className="chat-dock-item-name">{other.name}</span>
+                    <span className="chat-dock-item-name">
+                      {other.name}
+                      {isConnectionUnread(c.id) && <span className="thread-item-unread-dot" aria-label="Unread" />}
+                    </span>
                     <span className="chat-dock-item-preview">{c.lastMessage ? c.lastMessage.text : 'Say hello'}</span>
                   </button>
                 );

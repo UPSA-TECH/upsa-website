@@ -6,7 +6,7 @@ import { useChatWidget } from '../../_lib/ChatWidgetProvider';
 import Avatar from '../../_components/Avatar';
 
 export default function MessagesIndexPage() {
-  const { state, currentUserId } = usePortalData();
+  const { state, currentUserId, isConnectionUnread } = usePortalData();
   const { openChat } = useChatWidget();
   const connections = state.connections.filter(c => c.memberIds.includes(currentUserId));
 
@@ -29,11 +29,15 @@ export default function MessagesIndexPage() {
             const other = state.members[otherId];
             if (!other) return null;
             const last = c.lastMessage;
+            const unread = isConnectionUnread(c.id);
             return (
               <button className="thread-item" key={c.id} onClick={() => openChat(c.id)}>
                 <Avatar name={other.name} initials={other.initials} color={other.avatarColor} imageUrl={other.avatarUrl} size="sm" />
                 <div>
-                  <div className="thread-item-name">{other.name}</div>
+                  <div className="thread-item-name">
+                    {other.name}
+                    {unread && <span className="thread-item-unread-dot" aria-label="Unread" />}
+                  </div>
                   <div className="thread-item-preview">{last ? last.text : 'Say hello'}</div>
                 </div>
               </button>

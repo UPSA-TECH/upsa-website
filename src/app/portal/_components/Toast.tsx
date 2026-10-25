@@ -3,9 +3,11 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 
 type ToastVariant = 'success' | 'error' | 'info';
-type ToastItem = { id: number; message: string; variant: ToastVariant; leaving: boolean };
+type ToastAction = { label: string; onClick: () => void };
+type ToastItem = { id: number; message: string; variant: ToastVariant; leaving: boolean; actions?: ToastAction[] };
+type ToastFn = (message: string, variant?: ToastVariant, actions?: ToastAction | ToastAction[]) => void;
 
-const ToastContext = createContext<((message: string, variant?: ToastVariant) => void) | null>(null);
+const ToastContext = createContext<ToastFn | null>(null);
 
 const AUTO_DISMISS_MS = 4200;
 const EXIT_ANIMATION_MS = 220;
@@ -27,10 +29,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, EXIT_ANIMATION_MS);
   }, []);
 
-  const toast = useCallback(
-    (message: string, variant: ToastVariant = 'info') => {
+  const toast: ToastFn = useCallback(
+    (message, variant = 'info', actions) => {
       const id = nextId.current++;
-      setToasts(prev => [...prev, { id, message, variant, leaving: false }]);
+      const list = actions ? (Array.isArray(actions) ? actions : [actions]) : undefined;
+      setToasts(prev => [...prev, { id, message, variant, leaving: false, actions: list }]);
       window.setTimeout(() => remove(id), AUTO_DISMISS_MS);
     },
     [remove]
@@ -43,7 +46,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map(t => (
           <div key={t.id} className={`toast toast-${t.variant}${t.leaving ? ' toast-leaving' : ''}`} onClick={() => remove(t.id)}>
             <span className="toast-icon" aria-hidden="true">{ICONS[t.variant]}</span>
-            {t.message}
+            <span className="toast-msg">{t.message}</span>
+            {t.actions?.map(a => (
+              <button
+                key={a.label}
+                type="button"
+                className="toast-action"
+                onClick={e => {
+                  e.stopPropagation();
+                  a.onClick();
+                  remove(t.id);
+                }}
+              >
+                {a.label}
+              </button>
+            ))}
           </div>
         ))}
       </div>
