@@ -11,7 +11,7 @@ from rest_framework.settings import api_settings
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
-from .models import Connection, ConnectionRequest, Message, Profile, Resume
+from .models import Certification, Connection, ConnectionRequest, Education, Message, Profile, Resume, WorkExperience
 from users.models import ClerkIdentity
 
 from .storage import avatar_storage, resume_storage
@@ -379,6 +379,89 @@ class PortalApiTests(APITestCase):
         )
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.data["attachment"], "")  # read-only fields, silently ignored on write
+
+
+class ExtendedProfileTests(APITestCase):
+    """Education / work experience / certifications - each managed through
+    its own /members/me/<kind>/ endpoints, embedded read-only on the profile."""
+
+    def setUp(self):
+        self.me = User.objects.create(username="clerk:me")
+        self.other = User.objects.create(username="clerk:other")
+        self.client.force_authenticate(user=self.me)
+
+    def test_add_edit_delete_education(self):
+        res = self.client.post(
+            reverse("education-list"),
+            {"school": "UCF", "degree": "BS", "fieldOfStudy": "CS", "startYear": 2020, "endYear": 2024},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        entry_id = res.data["id"]
+        self.assertEqual(Education.objects.get(pk=entry_id).profile.user, self.me)
+
+        edit = self.client.patch(reverse("education-detail", args=[entry_id]), {"degree": "BS Honors"}, format="json")
+        self.assertEqual(edit.status_code, 200)
+        self.assertEqual(edit.data["degree"], "BS Honors")
+
+        listed = self.client.get(reverse("education-list"))
+        self.assertEqual(len(listed.data), 1)
+
+        deleted = self.client.delete(reverse("education-detail", args=[entry_id]))
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(Education.objects.filter(pk=entry_id).count(), 0)
+
+    def test_add_edit_delete_experience(self):
+        res = self.client.post(
+            reverse("experience-list"),
+            {"jobTitle": "SWE Intern", "company": "Acme", "startDate": "2023-06-01", "currentlyWorking": False, "endDate": "2023-08-30"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        entry_id = res.data["id"]
+
+        edit = self.client.patch(reverse("experience-detail", args=[entry_id]), {"currentlyWorking": True, "endDate": None}, format="json")
+        self.assertEqual(edit.status_code, 200)
+        self.assertTrue(edit.data["currentlyWorking"])
+
+        deleted = self.client.delete(reverse("experience-detail", args=[entry_id]))
+        self.assertEqual(deleted.status_code, 204)
+
+    def test_add_edit_delete_certification(self):
+        res = self.client.post(
+            reverse("certifications-list"),
+            {"name": "AWS Certified", "issuingOrganization": "Amazon", "issueDate": "2024-01-15"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        entry_id = res.data["id"]
+
+        edit = self.client.patch(reverse("certifications-detail", args=[entry_id]), {"credentialUrl": "https://example.com/cred"}, format="json")
+        self.assertEqual(edit.status_code, 200)
+        self.assertEqual(edit.data["credentialUrl"], "https://example.com/cred")
+
+        deleted = self.client.delete(reverse("certifications-detail", args=[entry_id]))
+        self.assertEqual(deleted.status_code, 204)
+
+    def test_cannot_touch_someone_elses_entries(self):
+        other_profile = Profile.objects.create(user=self.other)
+        education = Education.objects.create(profile=other_profile, school="MIT")
+        experience = WorkExperience.objects.create(profile=other_profile, job_title="PM", company="Acme")
+        certification = Certification.objects.create(profile=other_profile, name="PMP")
+
+        self.assertEqual(self.client.patch(reverse("education-detail", args=[education.id]), {"school": "x"}, format="json").status_code, 404)
+        self.assertEqual(self.client.delete(reverse("experience-detail", args=[experience.id])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("certifications-detail", args=[certification.id])).status_code, 404)
+
+    def test_entries_are_embedded_read_only_on_the_profile(self):
+        Education.objects.create(profile=Profile.objects.create(user=self.me), school="UCF")
+        res = self.client.get(reverse("my-profile"))
+        self.assertEqual(res.data["education"][0]["school"], "UCF")
+
+        # sending them in a profile PATCH is silently ignored - not writable here
+        patched = self.client.patch(reverse("my-profile"), {"education": []}, format="json")
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(len(patched.data["education"]), 1)
 
 
 def _fake_file(content, name, content_type):

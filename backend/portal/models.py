@@ -88,6 +88,60 @@ class Profile(models.Model):
         self.onboarding_complete = self.is_actually_complete()
 
 
+class Education(models.Model):
+    """One school entry on a profile - a member can have several."""
+
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="education")
+    school = models.CharField(max_length=200)
+    degree = models.CharField(max_length=200, blank=True)
+    field_of_study = models.CharField(max_length=200, blank=True)
+    start_year = models.PositiveIntegerField(null=True, blank=True)
+    end_year = models.PositiveIntegerField(null=True, blank=True)
+    currently_studying = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-start_year", "-id"]
+
+    def __str__(self):
+        return f"{self.school} ({self.profile_id})"
+
+
+class WorkExperience(models.Model):
+    """One job entry on a profile - a member can have several."""
+
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="experience")
+    job_title = models.CharField(max_length=200)
+    company = models.CharField(max_length=200)
+    employment_type = models.CharField(max_length=100, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    currently_working = models.BooleanField(default=False)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-start_date", "-id"]
+
+    def __str__(self):
+        return f"{self.job_title} @ {self.company} ({self.profile_id})"
+
+
+class Certification(models.Model):
+    """One license/certification entry on a profile - a member can have several."""
+
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="certifications")
+    name = models.CharField(max_length=200)
+    issuing_organization = models.CharField(max_length=200, blank=True)
+    issue_date = models.DateField(null=True, blank=True)
+    expiration_date = models.DateField(null=True, blank=True)
+    credential_url = models.URLField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ["-issue_date", "-id"]
+
+    def __str__(self):
+        return f"{self.name} ({self.profile_id})"
+
+
 # How many distinct members reporting the same profile flags it for an admin.
 REPORTS_TO_FLAG = 3
 

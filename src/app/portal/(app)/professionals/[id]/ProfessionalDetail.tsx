@@ -111,6 +111,59 @@ export default function ProfessionalDetail({ id }: { id: string }) {
         </div>
       )}
 
+      {professional.experience.length > 0 && (
+        <div className="detail-card">
+          <h3>Experience</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {professional.experience.map(exp => (
+              <div key={exp.id} className="entry-row">
+                <div>
+                  <strong>{exp.jobTitle}</strong>
+                  <div className="sub">{exp.company}{exp.employmentType ? ` · ${exp.employmentType}` : ''}</div>
+                  <div className="sub">{exp.startDate ?? ''}{exp.startDate || exp.endDate ? ' - ' : ''}{exp.currentlyWorking ? 'Present' : exp.endDate ?? ''}</div>
+                  {exp.description && <p style={{ marginTop: 6, fontSize: 13 }}>{exp.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {professional.education.length > 0 && (
+        <div className="detail-card">
+          <h3>Education</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {professional.education.map(edu => (
+              <div key={edu.id} className="entry-row">
+                <div>
+                  <strong>{edu.school}</strong>
+                  {(edu.degree || edu.fieldOfStudy) && <div className="sub">{[edu.degree, edu.fieldOfStudy].filter(Boolean).join(', ')}</div>}
+                  <div className="sub">{edu.startYear ?? ''}{edu.startYear || edu.endYear ? ' - ' : ''}{edu.currentlyStudying ? 'Present' : edu.endYear ?? ''}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {professional.certifications.length > 0 && (
+        <div className="detail-card">
+          <h3>Licenses &amp; certifications</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {professional.certifications.map(cert => (
+              <div key={cert.id} className="entry-row">
+                <div>
+                  <strong>{cert.name}</strong>
+                  {cert.issuingOrganization && <div className="sub">{cert.issuingOrganization}</div>}
+                  {cert.issueDate && <div className="sub">Issued {cert.issueDate}{cert.expirationDate ? ` · Expires ${cert.expirationDate}` : ''}</div>}
+                  {cert.credentialUrl && <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: 'var(--moss)' }}>View credential &rarr;</a>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {professional.skills.length > 0 && (
         <div className="detail-card">
           <h3>Skills &amp; expertise</h3>

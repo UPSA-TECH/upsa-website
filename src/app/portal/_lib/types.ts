@@ -1,6 +1,36 @@
 // Shared portal types. Data itself now comes from the real API (see api.ts
 // and PortalDataProvider.tsx) - nothing here is seed/mock data anymore.
 
+export type Education = {
+  id: string;
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startYear?: number;
+  endYear?: number;
+  currentlyStudying: boolean;
+};
+
+export type WorkExperience = {
+  id: string;
+  jobTitle: string;
+  company: string;
+  employmentType?: string;
+  startDate?: string;
+  endDate?: string;
+  currentlyWorking: boolean;
+  description?: string;
+};
+
+export type Certification = {
+  id: string;
+  name: string;
+  issuingOrganization?: string;
+  issueDate?: string;
+  expirationDate?: string;
+  credentialUrl?: string;
+};
+
 export type Member = {
   id: string;
   name: string;
@@ -25,6 +55,9 @@ export type Member = {
   emailNotifications: boolean;
   onboardingComplete: boolean;
   termsAccepted: boolean;
+  education: Education[];
+  experience: WorkExperience[];
+  certifications: Certification[];
 };
 
 export type RequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';

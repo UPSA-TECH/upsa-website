@@ -7,11 +7,14 @@ import { API_BASE, apiDownload, apiRequest } from './api';
 import { useToast } from '../_components/Toast';
 import {
   AVATAR_COLORS,
+  type Certification,
   type ChatMessage,
   type Connection,
   type ConnectionRequest,
+  type Education,
   type Member,
   type RequestType,
+  type WorkExperience,
 } from './types';
 
 // Same public/guest routes middleware.ts leaves unauthenticated - these
@@ -22,6 +25,36 @@ function isPublicPortalRoute(pathname: string | null) {
 }
 
 // --- raw API response shapes ---------------------------------------------
+
+type ApiEducation = {
+  id: number;
+  school: string;
+  degree: string;
+  fieldOfStudy: string;
+  startYear: number | null;
+  endYear: number | null;
+  currentlyStudying: boolean;
+};
+
+type ApiWorkExperience = {
+  id: number;
+  jobTitle: string;
+  company: string;
+  employmentType: string;
+  startDate: string | null;
+  endDate: string | null;
+  currentlyWorking: boolean;
+  description: string;
+};
+
+type ApiCertification = {
+  id: number;
+  name: string;
+  issuingOrganization: string;
+  issueDate: string | null;
+  expirationDate: string | null;
+  credentialUrl: string;
+};
 
 type ApiProfile = {
   id: number;
@@ -43,6 +76,9 @@ type ApiProfile = {
   hasAvatar: boolean;
   onboardingComplete: boolean;
   termsAccepted: boolean;
+  education: ApiEducation[];
+  experience: ApiWorkExperience[];
+  certifications: ApiCertification[];
 };
 
 type ApiRequest = {
@@ -114,6 +150,42 @@ function timeAgo(iso: string): string {
   return `${Math.round(diffYear)} year${Math.round(diffYear) === 1 ? '' : 's'} ago`;
 }
 
+function toEducation(e: ApiEducation): Education {
+  return {
+    id: String(e.id),
+    school: e.school,
+    degree: e.degree || undefined,
+    fieldOfStudy: e.fieldOfStudy || undefined,
+    startYear: e.startYear ?? undefined,
+    endYear: e.endYear ?? undefined,
+    currentlyStudying: e.currentlyStudying,
+  };
+}
+
+function toWorkExperience(e: ApiWorkExperience): WorkExperience {
+  return {
+    id: String(e.id),
+    jobTitle: e.jobTitle,
+    company: e.company,
+    employmentType: e.employmentType || undefined,
+    startDate: e.startDate ?? undefined,
+    endDate: e.endDate ?? undefined,
+    currentlyWorking: e.currentlyWorking,
+    description: e.description || undefined,
+  };
+}
+
+function toCertification(c: ApiCertification): Certification {
+  return {
+    id: String(c.id),
+    name: c.name,
+    issuingOrganization: c.issuingOrganization || undefined,
+    issueDate: c.issueDate ?? undefined,
+    expirationDate: c.expirationDate ?? undefined,
+    credentialUrl: c.credentialUrl || undefined,
+  };
+}
+
 function toMember(p: ApiProfile): Member {
   const name = p.name || PLACEHOLDER_NAME;
   return {
@@ -139,6 +211,9 @@ function toMember(p: ApiProfile): Member {
     emailNotifications: p.emailNotifications ?? true,
     onboardingComplete: p.onboardingComplete,
     termsAccepted: p.termsAccepted,
+    education: (p.education ?? []).map(toEducation),
+    experience: (p.experience ?? []).map(toWorkExperience),
+    certifications: (p.certifications ?? []).map(toCertification),
   };
 }
 
@@ -212,6 +287,9 @@ const EMPTY_MEMBER: Member = {
   emailNotifications: true,
   onboardingComplete: false,
   termsAccepted: false,
+  education: [],
+  experience: [],
+  certifications: [],
 };
 
 type PortalState = {
@@ -279,6 +357,15 @@ type PortalContextValue = {
   loadMessages: (connectionId: string) => Promise<void>;
   isConnectionUnread: (connectionId: string) => boolean;
   unreadMessageCount: number;
+  addEducation: (fields: Omit<Education, 'id'>) => Promise<void>;
+  updateEducation: (id: string, fields: Partial<Omit<Education, 'id'>>) => Promise<void>;
+  removeEducation: (id: string) => Promise<void>;
+  addExperience: (fields: Omit<WorkExperience, 'id'>) => Promise<void>;
+  updateExperience: (id: string, fields: Partial<Omit<WorkExperience, 'id'>>) => Promise<void>;
+  removeExperience: (id: string) => Promise<void>;
+  addCertification: (fields: Omit<Certification, 'id'>) => Promise<void>;
+  updateCertification: (id: string, fields: Partial<Omit<Certification, 'id'>>) => Promise<void>;
+  removeCertification: (id: string) => Promise<void>;
 };
 
 const PortalContext = createContext<PortalContextValue | null>(null);
@@ -710,6 +797,87 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, members: { ...prev.members, [member.id]: member } }));
   }, [call]);
 
+  // Education/experience/certifications all follow the same add/update/remove
+  // shape against their own /members/me/<kind>/ endpoints - this just patches
+  // the matching list on the signed-in member's own cached profile afterward.
+  function patchMyList<K extends 'education' | 'experience' | 'certifications'>(
+    key: K,
+    userId: string | null,
+    updater: (list: Member[K]) => Member[K]
+  ) {
+    setState(prev => {
+      if (!userId || !prev.members[userId]) return prev;
+      const me = prev.members[userId];
+      return { ...prev, members: { ...prev.members, [userId]: { ...me, [key]: updater(me[key]) } } };
+    });
+  }
+
+  const addEducation = useCallback(
+    async (fields: Omit<Education, 'id'>) => {
+      const created = await call<ApiEducation>('/api/members/me/education/', { method: 'POST', body: JSON.stringify(fields) });
+      patchMyList('education', currentUserId, list => [...list, toEducation(created)]);
+    },
+    [call, currentUserId]
+  );
+  const updateEducation = useCallback(
+    async (id: string, fields: Partial<Omit<Education, 'id'>>) => {
+      const updated = await call<ApiEducation>(`/api/members/me/education/${id}/`, { method: 'PATCH', body: JSON.stringify(fields) });
+      patchMyList('education', currentUserId, list => list.map(e => (e.id === id ? toEducation(updated) : e)));
+    },
+    [call, currentUserId]
+  );
+  const removeEducation = useCallback(
+    async (id: string) => {
+      await call<void>(`/api/members/me/education/${id}/`, { method: 'DELETE' });
+      patchMyList('education', currentUserId, list => list.filter(e => e.id !== id));
+    },
+    [call, currentUserId]
+  );
+
+  const addExperience = useCallback(
+    async (fields: Omit<WorkExperience, 'id'>) => {
+      const created = await call<ApiWorkExperience>('/api/members/me/experience/', { method: 'POST', body: JSON.stringify(fields) });
+      patchMyList('experience', currentUserId, list => [...list, toWorkExperience(created)]);
+    },
+    [call, currentUserId]
+  );
+  const updateExperience = useCallback(
+    async (id: string, fields: Partial<Omit<WorkExperience, 'id'>>) => {
+      const updated = await call<ApiWorkExperience>(`/api/members/me/experience/${id}/`, { method: 'PATCH', body: JSON.stringify(fields) });
+      patchMyList('experience', currentUserId, list => list.map(e => (e.id === id ? toWorkExperience(updated) : e)));
+    },
+    [call, currentUserId]
+  );
+  const removeExperience = useCallback(
+    async (id: string) => {
+      await call<void>(`/api/members/me/experience/${id}/`, { method: 'DELETE' });
+      patchMyList('experience', currentUserId, list => list.filter(e => e.id !== id));
+    },
+    [call, currentUserId]
+  );
+
+  const addCertification = useCallback(
+    async (fields: Omit<Certification, 'id'>) => {
+      const created = await call<ApiCertification>('/api/members/me/certifications/', { method: 'POST', body: JSON.stringify(fields) });
+      patchMyList('certifications', currentUserId, list => [...list, toCertification(created)]);
+    },
+    [call, currentUserId]
+  );
+  const updateCertification = useCallback(
+    async (id: string, fields: Partial<Omit<Certification, 'id'>>) => {
+      const updated = await call<ApiCertification>(`/api/members/me/certifications/${id}/`, { method: 'PATCH', body: JSON.stringify(fields) });
+      patchMyList('certifications', currentUserId, list => list.map(c => (c.id === id ? toCertification(updated) : c)));
+    },
+    [call, currentUserId]
+  );
+  const removeCertification = useCallback(
+    async (id: string) => {
+      await call<void>(`/api/members/me/certifications/${id}/`, { method: 'DELETE' });
+      patchMyList('certifications', currentUserId, list => list.filter(c => c.id !== id));
+    },
+    [call, currentUserId]
+  );
+
   const downloadResumeById = useCallback(
     async (resumeId: string, fileName: string) => {
       const token = await getToken();
@@ -826,6 +994,15 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     loadMessages,
     isConnectionUnread,
     unreadMessageCount,
+    addEducation,
+    updateEducation,
+    removeEducation,
+    addExperience,
+    updateExperience,
+    removeExperience,
+    addCertification,
+    updateCertification,
+    removeCertification,
   };
 
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>;

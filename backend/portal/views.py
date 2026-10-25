@@ -15,16 +15,30 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
 from . import notifications
-from .models import REPORTS_TO_FLAG, Connection, ConnectionRequest, Message, Profile, ProfileReport, Resume
+from .models import (
+    REPORTS_TO_FLAG,
+    Certification,
+    Connection,
+    ConnectionRequest,
+    Education,
+    Message,
+    Profile,
+    ProfileReport,
+    Resume,
+    WorkExperience,
+)
 from .serializers import (
     ALLOWED_AVATAR_CONTENT_TYPES,
     ALLOWED_RESUME_CONTENT_TYPES,
     MAX_AVATAR_SIZE,
     MAX_RESUME_SIZE,
+    CertificationSerializer,
     ConnectionRequestSerializer,
     ConnectionSerializer,
+    EducationSerializer,
     MessageSerializer,
     ProfileSerializer,
+    WorkExperienceSerializer,
 )
 
 
@@ -55,6 +69,69 @@ class MemberProfileView(generics.RetrieveAPIView):
     queryset = Profile.objects.filter(deactivated=False)
     lookup_url_kwarg = "user_id"
     lookup_field = "user_id"
+
+
+# --- Education / experience / certifications --------------------------------
+# Each is managed through its own my-profile-only list, with onboarding_complete
+# recomputed after every change since the main photo/bio/etc. profile save
+# isn't what touches these rows.
+
+
+class _MyEntryListCreateView(generics.ListCreateAPIView):
+    """Shared by education/experience/certifications: list and add entries on
+    the signed-in member's own profile. related_name on the model (set by
+    each subclass) is both the queryset relation and the Profile field name."""
+
+    pagination_class = None
+    related_name = None
+
+    def get_queryset(self):
+        profile, _ = Profile.objects.get_or_create(user=self.request.user)
+        return getattr(profile, self.related_name).all()
+
+    def perform_create(self, serializer):
+        profile, _ = Profile.objects.get_or_create(user=self.request.user)
+        serializer.save(profile=profile)
+
+
+class _MyEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Shared by education/experience/certifications: edit/delete one entry -
+    ownership enforced in the query, same as everywhere else in this API."""
+
+    related_name = None
+
+    def get_queryset(self):
+        return self.model.objects.filter(profile__user=self.request.user)
+
+
+class EducationListCreateView(_MyEntryListCreateView):
+    serializer_class = EducationSerializer
+    related_name = "education"
+
+
+class EducationDetailView(_MyEntryDetailView):
+    serializer_class = EducationSerializer
+    model = Education
+
+
+class WorkExperienceListCreateView(_MyEntryListCreateView):
+    serializer_class = WorkExperienceSerializer
+    related_name = "experience"
+
+
+class WorkExperienceDetailView(_MyEntryDetailView):
+    serializer_class = WorkExperienceSerializer
+    model = WorkExperience
+
+
+class CertificationListCreateView(_MyEntryListCreateView):
+    serializer_class = CertificationSerializer
+    related_name = "certifications"
+
+
+class CertificationDetailView(_MyEntryDetailView):
+    serializer_class = CertificationSerializer
+    model = Certification
 
 
 @api_view(["POST"])

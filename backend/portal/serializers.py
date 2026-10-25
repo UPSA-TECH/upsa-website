@@ -2,10 +2,13 @@ from rest_framework import serializers
 
 from .models import (
     REQUEST_TYPE_CHOICES,
+    Certification,
     Connection,
     ConnectionRequest,
+    Education,
     Message,
     Profile,
+    WorkExperience,
 )
 
 MAX_RESUME_SIZE = 5 * 1024 * 1024
@@ -27,6 +30,40 @@ def _size_label(num_bytes):
     return f"{num_bytes / (1024 * 1024):.1f} MB"
 
 
+class EducationSerializer(serializers.ModelSerializer):
+    fieldOfStudy = serializers.CharField(source="field_of_study", required=False, allow_blank=True)
+    startYear = serializers.IntegerField(source="start_year", required=False, allow_null=True)
+    endYear = serializers.IntegerField(source="end_year", required=False, allow_null=True)
+    currentlyStudying = serializers.BooleanField(source="currently_studying", required=False)
+
+    class Meta:
+        model = Education
+        fields = ["id", "school", "degree", "fieldOfStudy", "startYear", "endYear", "currentlyStudying"]
+
+
+class WorkExperienceSerializer(serializers.ModelSerializer):
+    jobTitle = serializers.CharField(source="job_title")
+    employmentType = serializers.CharField(source="employment_type", required=False, allow_blank=True)
+    startDate = serializers.DateField(source="start_date", required=False, allow_null=True)
+    endDate = serializers.DateField(source="end_date", required=False, allow_null=True)
+    currentlyWorking = serializers.BooleanField(source="currently_working", required=False)
+
+    class Meta:
+        model = WorkExperience
+        fields = ["id", "jobTitle", "company", "employmentType", "startDate", "endDate", "currentlyWorking", "description"]
+
+
+class CertificationSerializer(serializers.ModelSerializer):
+    issuingOrganization = serializers.CharField(source="issuing_organization", required=False, allow_blank=True)
+    issueDate = serializers.DateField(source="issue_date", required=False, allow_null=True)
+    expirationDate = serializers.DateField(source="expiration_date", required=False, allow_null=True)
+    credentialUrl = serializers.URLField(source="credential_url", required=False, allow_blank=True)
+
+    class Meta:
+        model = Certification
+        fields = ["id", "name", "issuingOrganization", "issueDate", "expirationDate", "credentialUrl"]
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="user_id", read_only=True)
     referralsAvailable = serializers.BooleanField(source="referrals_available", required=False)
@@ -43,6 +80,12 @@ class ProfileSerializer(serializers.ModelSerializer):
     # Write-only: {"acceptTerms": true} records acceptance now. There's no
     # way to un-accept - once sent it just stays true.
     acceptTerms = serializers.BooleanField(write_only=True, required=False)
+    # Read-only here - managed through their own /members/me/<kind>/ endpoints
+    # below, not through a PATCH to the profile itself (each entry has its own
+    # id to edit/delete, which doesn't fit a single flat profile PATCH).
+    education = EducationSerializer(many=True, read_only=True)
+    experience = WorkExperienceSerializer(many=True, read_only=True)
+    certifications = CertificationSerializer(many=True, read_only=True)
 
     class Meta:
         model = Profile
@@ -67,6 +110,9 @@ class ProfileSerializer(serializers.ModelSerializer):
             "onboardingComplete",
             "termsAccepted",
             "acceptTerms",
+            "education",
+            "experience",
+            "certifications",
         ]
 
     def get_termsAccepted(self, obj):

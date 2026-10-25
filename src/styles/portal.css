@@ -573,6 +573,12 @@
 .skill-pills span { background: var(--paper-deep); font-size: 12.5px; padding: 6px 12px; border-radius: 999px; color: var(--ink-2); transition: background .15s, color .15s; }
 .skill-pills span:hover { background: var(--moss-soft); color: var(--moss); }
 
+.entry-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding-bottom: 14px; border-bottom: var(--hairline); }
+.entry-row:last-child { padding-bottom: 0; border-bottom: none; }
+.entry-row strong { font-size: 14.5px; color: var(--ink); }
+.entry-row .sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.entry-row-actions { display: flex; gap: 4px; flex: none; }
+
 /* ---------- Request / connection cards ---------- */
 .req-list { display: flex; flex-direction: column; gap: 12px; }
 .req-card {

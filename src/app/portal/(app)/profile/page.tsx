@@ -2,18 +2,54 @@
 
 import { useRef, useState } from 'react';
 import { PLACEHOLDER_NAME, usePortalData } from '../../_lib/PortalDataProvider';
+import type { Education, WorkExperience, Certification } from '../../_lib/types';
 import { ApiError } from '../../_lib/api';
 import Avatar from '../../_components/Avatar';
 import RoleTag from '../../_components/RoleTag';
+import EducationModal from '../../_components/EducationModal';
+import ExperienceModal from '../../_components/ExperienceModal';
+import CertificationModal from '../../_components/CertificationModal';
 import { useToast } from '../../_components/Toast';
-import { Pencil, Camera } from 'lucide-react';
+import { Pencil, Camera, Plus, Trash2 } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { currentUser, updateProfile, uploadAvatar, removeAvatar } = usePortalData();
+  const { currentUser, updateProfile, uploadAvatar, removeAvatar, removeEducation, removeExperience, removeCertification } = usePortalData();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const [addingEducation, setAddingEducation] = useState(false);
+  const [editingEducation, setEditingEducation] = useState<Education | null>(null);
+  const [addingExperience, setAddingExperience] = useState(false);
+  const [editingExperience, setEditingExperience] = useState<WorkExperience | null>(null);
+  const [addingCertification, setAddingCertification] = useState(false);
+  const [editingCertification, setEditingCertification] = useState<Certification | null>(null);
+
+  async function handleDeleteEducation(id: string) {
+    if (!window.confirm('Remove this education entry?')) return;
+    try {
+      await removeEducation(id);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not remove that. Try again.', 'error');
+    }
+  }
+  async function handleDeleteExperience(id: string) {
+    if (!window.confirm('Remove this experience entry?')) return;
+    try {
+      await removeExperience(id);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not remove that. Try again.', 'error');
+    }
+  }
+  async function handleDeleteCertification(id: string) {
+    if (!window.confirm('Remove this certification?')) return;
+    try {
+      await removeCertification(id);
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not remove that. Try again.', 'error');
+    }
+  }
 
   const [name, setName] = useState(currentUser.name === PLACEHOLDER_NAME ? '' : currentUser.name);
   const [headline, setHeadline] = useState(currentUser.headline);
@@ -271,10 +307,93 @@ export default function ProfilePage() {
             <h3>About</h3>
             <p>{currentUser.bio}</p>
           </div>
+          {(currentUser.university || currentUser.major) && (
+            <div className="detail-card">
+              <h3>University</h3>
+              <p>{currentUser.university}{currentUser.major ? `, ${currentUser.major}` : ''}</p>
+            </div>
+          )}
+
           <div className="detail-card">
-            <h3>Education</h3>
-            <p>{currentUser.university}{currentUser.major ? `, ${currentUser.major}` : ''}</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ marginBottom: 0 }}>Education</h3>
+              <button type="button" className="btn-ghost" onClick={() => setAddingEducation(true)}><Plus size={15} /> Add</button>
+            </div>
+            {currentUser.education.length === 0 ? (
+              <p style={{ color: 'var(--ink-3)', marginTop: 10 }}>None added yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                {currentUser.education.map(edu => (
+                  <div key={edu.id} className="entry-row">
+                    <div>
+                      <strong>{edu.school}</strong>
+                      {(edu.degree || edu.fieldOfStudy) && <div className="sub">{[edu.degree, edu.fieldOfStudy].filter(Boolean).join(', ')}</div>}
+                      <div className="sub">{edu.startYear ?? ''}{edu.startYear || edu.endYear ? ' - ' : ''}{edu.currentlyStudying ? 'Present' : edu.endYear ?? ''}</div>
+                    </div>
+                    <div className="entry-row-actions">
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => setEditingEducation(edu)}><Pencil size={13} /></button>
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => handleDeleteEducation(edu.id)}><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          <div className="detail-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ marginBottom: 0 }}>Work experience</h3>
+              <button type="button" className="btn-ghost" onClick={() => setAddingExperience(true)}><Plus size={15} /> Add</button>
+            </div>
+            {currentUser.experience.length === 0 ? (
+              <p style={{ color: 'var(--ink-3)', marginTop: 10 }}>None added yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                {currentUser.experience.map(exp => (
+                  <div key={exp.id} className="entry-row">
+                    <div>
+                      <strong>{exp.jobTitle}</strong>
+                      <div className="sub">{exp.company}{exp.employmentType ? ` · ${exp.employmentType}` : ''}</div>
+                      <div className="sub">{exp.startDate ?? ''}{exp.startDate || exp.endDate ? ' - ' : ''}{exp.currentlyWorking ? 'Present' : exp.endDate ?? ''}</div>
+                      {exp.description && <p style={{ marginTop: 6, fontSize: 13 }}>{exp.description}</p>}
+                    </div>
+                    <div className="entry-row-actions">
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => setEditingExperience(exp)}><Pencil size={13} /></button>
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => handleDeleteExperience(exp.id)}><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="detail-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ marginBottom: 0 }}>Licenses &amp; certifications</h3>
+              <button type="button" className="btn-ghost" onClick={() => setAddingCertification(true)}><Plus size={15} /> Add</button>
+            </div>
+            {currentUser.certifications.length === 0 ? (
+              <p style={{ color: 'var(--ink-3)', marginTop: 10 }}>None added yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                {currentUser.certifications.map(cert => (
+                  <div key={cert.id} className="entry-row">
+                    <div>
+                      <strong>{cert.name}</strong>
+                      {cert.issuingOrganization && <div className="sub">{cert.issuingOrganization}</div>}
+                      {cert.issueDate && <div className="sub">Issued {cert.issueDate}{cert.expirationDate ? ` · Expires ${cert.expirationDate}` : ''}</div>}
+                      {cert.credentialUrl && <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: 'var(--moss)' }}>View credential &rarr;</a>}
+                    </div>
+                    <div className="entry-row-actions">
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => setEditingCertification(cert)}><Pencil size={13} /></button>
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => handleDeleteCertification(cert.id)}><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="detail-card">
             <h3>Skills &amp; interests</h3>
             <div className="skill-pills">
@@ -295,6 +414,16 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {(addingEducation || editingEducation) && (
+        <EducationModal existing={editingEducation} onClose={() => { setAddingEducation(false); setEditingEducation(null); }} />
+      )}
+      {(addingExperience || editingExperience) && (
+        <ExperienceModal existing={editingExperience} onClose={() => { setAddingExperience(false); setEditingExperience(null); }} />
+      )}
+      {(addingCertification || editingCertification) && (
+        <CertificationModal existing={editingCertification} onClose={() => { setAddingCertification(false); setEditingCertification(null); }} />
       )}
     </>
   );
