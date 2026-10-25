@@ -501,7 +501,7 @@
 .filter-count { font-size: 13px; color: var(--ink-3); margin-bottom: 16px; }
 
 /* ---------- Discover grid / professional card ---------- */
-.pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+.pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; align-items: start; }
 .pf-card {
   background: #fff; padding: 22px; display: flex; flex-direction: column; gap: 14px;
   border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
@@ -511,6 +511,7 @@
 .pf-card:active { transform: translateY(-2px); }
 .pf-card-top { display: flex; gap: 14px; align-items: flex-start; }
 .pf-card-top > div { min-width: 0; }
+.pf-card-top .avatar { width: 56px; height: 56px; font-size: 17px; }
 .pf-card-name { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-card-headline { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
 .pf-card-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: var(--ink-3); }
