@@ -136,6 +136,13 @@
 .cal-event-pill:hover {
   background: color-mix(in srgb, var(--ec, var(--moss)) 22%, transparent);
 }
+.cal-event-pill--past {
+  background: var(--paper-deep);
+  color: var(--ink-3);
+}
+.cal-event-pill--past:hover {
+  background: var(--paper-deep);
+}
 
 .cal-event-more {
   font-family: 'Geist Mono', monospace;
@@ -172,6 +179,9 @@
   box-shadow: 0 8px 28px -8px rgba(26,31,24,.12);
   transform: translateY(-2px);
 }
+.cal-list-item--past { opacity: .55; }
+.cal-list-item--past .cli-dot { background: var(--ink-3) !important; }
+.cal-list-item--past .cli-cat { color: var(--ink-3) !important; }
 
 .cli-date-col {
   display: flex;

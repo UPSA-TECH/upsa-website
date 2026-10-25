@@ -229,7 +229,7 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
                   {dayEvts.slice(0, MAX_VISIBLE_EVENTS).map(ev => (
                     <button
                       key={ev.slug}
-                      className="cal-event-pill"
+                      className={`cal-event-pill${ev.status === 'past' ? ' cal-event-pill--past' : ''}`}
                       style={{ '--ec': eventColor(ev.slug) } as React.CSSProperties}
                       onClick={() => setSelected(ev)}
                       type="button"
@@ -253,10 +253,11 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
           monthEvents.map(ev => {
             const p     = parseDay(ev.date);
             const color = eventColor(ev.slug);
+            const isPast = ev.status === 'past';
             return (
               <button
                 key={ev.slug}
-                className="cal-list-item"
+                className={`cal-list-item${isPast ? ' cal-list-item--past' : ''}`}
                 onClick={() => setSelected(ev)}
                 type="button"
               >
@@ -264,9 +265,9 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
                   <span className="cli-day">{p?.d}</span>
                   <span className="cli-mon">{MONTHS[p?.m ?? 0]?.slice(0, 3)}</span>
                 </div>
-                <div className="cli-dot" style={{ background: color }} />
+                <div className="cli-dot" style={{ background: isPast ? undefined : color }} />
                 <div className="cli-body">
-                  {ev.category && <span className="cli-cat" style={{ color }}>{ev.category}</span>}
+                  {ev.category && <span className="cli-cat" style={{ color: isPast ? undefined : color }}>{ev.category}</span>}
                   <span className="cli-title">{ev.title}</span>
                   {ev.location && <span className="cli-loc">{ev.location}</span>}
                 </div>
@@ -322,7 +323,12 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
 
             {/* Register (Google Form) */}
             <div className="cal-modal-foot">
-              {selected.registerUrl && (
+              {selected.status === 'past' ? (
+                <>
+                  <span className="badge badge-past">Past Event</span>
+                  <span className="cal-modal-noreg">This event has already happened.</span>
+                </>
+              ) : selected.registerUrl && (
                 <a
                   href={selected.registerUrl}
                   className="cal-modal-register"
@@ -331,9 +337,6 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
                 >
                   Register for this event →
                 </a>
-              )}
-              {selected.status === 'past' && (
-                <span className="badge badge-past" style={{ marginLeft: 12 }}>Past Event</span>
               )}
             </div>
 

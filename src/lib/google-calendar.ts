@@ -81,23 +81,14 @@ function toChicagoTime(iso: string): string {
 
 // ── main fetch ───────────────────────────────────────────────
 
-export async function getGoogleCalendarEvents(): Promise<CalEvent[]> {
-  if (!CALENDAR_ID || !API_KEY) {
-    console.warn('[google-calendar] GOOGLE_CALENDAR_ID or GOOGLE_API_KEY not set - returning empty list.');
-    return [];
-  }
-
-  const timeMin = new Date().toISOString();
-  const url     = new URL(
+async function fetchEvents(params: Record<string, string>): Promise<unknown[]> {
+  const url = new URL(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events`,
   );
-  url.searchParams.set('key',           API_KEY);
-  url.searchParams.set('timeMin',       timeMin);
-  url.searchParams.set('singleEvents',  'true');
-  url.searchParams.set('orderBy',       'startTime');
-  url.searchParams.set('maxResults',    '50');
+  url.searchParams.set('key', API_KEY);
+  url.searchParams.set('singleEvents', 'true');
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  let data: { items?: unknown[] };
   try {
     const res = await fetch(url.toString(), { next: { revalidate: 0 } });
     if (!res.ok) {
@@ -105,14 +96,34 @@ export async function getGoogleCalendarEvents(): Promise<CalEvent[]> {
       console.error('[google-calendar] API error', res.status, body);
       return [];
     }
-    data = await res.json();
+    const data = (await res.json()) as { items?: unknown[] };
+    return data.items ?? [];
   } catch (err) {
     console.error('[google-calendar] Fetch failed:', err);
     return [];
   }
+}
+
+export async function getGoogleCalendarEvents(): Promise<CalEvent[]> {
+  if (!CALENDAR_ID || !API_KEY) {
+    console.warn('[google-calendar] GOOGLE_CALENDAR_ID or GOOGLE_API_KEY not set - returning empty list.');
+    return [];
+  }
+
+  const now = new Date();
+  const oneYearAgo = new Date(now);
+  oneYearAgo.setFullYear(now.getFullYear() - 1);
+
+  // Two separate queries so a single maxResults cap can't let ancient history
+  // crowd out upcoming events (Google only returns ascending by startTime).
+  const [upcomingItems, pastItems] = await Promise.all([
+    fetchEvents({ timeMin: now.toISOString(), orderBy: 'startTime', maxResults: '50' }),
+    fetchEvents({ timeMin: oneYearAgo.toISOString(), timeMax: now.toISOString(), orderBy: 'startTime', maxResults: '50' }),
+  ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const items = (data.items ?? []) as any[];
+  const items = [...pastItems, ...upcomingItems] as any[];
+  const nowMs = now.getTime();
 
   return items.map((item, i) => {
     const allDay   = !!item.start?.date;
@@ -125,8 +136,12 @@ export async function getGoogleCalendarEvents(): Promise<CalEvent[]> {
     const rawDesc  = (item.description as string | undefined) ?? '';
     const rawLoc   = (item.location    as string | undefined) ?? '';
 
+    const eventEndMs = new Date(endIso || startIso).getTime();
+    const status: 'upcoming' | 'past' = eventEndMs < nowMs ? 'past' : 'upcoming';
+
+    // No point offering registration (real or dummy) for something that already happened.
     // TODO: remove dummy fallback once real Google Form links are added to calendar events
-    const registerUrl = extractRegisterLink(rawDesc) ?? DUMMY_REGISTER_URL;
+    const registerUrl = status === 'past' ? undefined : (extractRegisterLink(rawDesc) ?? DUMMY_REGISTER_URL);
     const category    = extractCategory(rawDesc);
     const cleanDesc   = stripHtml(rawDesc)
       .replace(/\[(?:category|type|register):[^\]]+\]/gi, '')
@@ -151,7 +166,7 @@ export async function getGoogleCalendarEvents(): Promise<CalEvent[]> {
       category,
       description: cleanDesc,
       registerUrl,
-      status:      'upcoming' as const,
+      status,
       startIso,
       endIso,
       allDay,
