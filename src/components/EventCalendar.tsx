@@ -24,6 +24,7 @@ const MONTHS = [
   'July','August','September','October','November','December',
 ];
 const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MAX_VISIBLE_EVENTS = 3;
 
 const EVENT_PALETTE = [
   '#2a7d4f',  // green
@@ -225,7 +226,7 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
               >
                 <span className="cal-cell-num">{day}</span>
                 <div className="cal-cell-events">
-                  {dayEvts.map(ev => (
+                  {dayEvts.slice(0, MAX_VISIBLE_EVENTS).map(ev => (
                     <button
                       key={ev.slug}
                       className="cal-event-pill"
@@ -236,6 +237,9 @@ export default function EventCalendar({ events }: { events: CalEvent[] }) {
                       {ev.title}
                     </button>
                   ))}
+                  {dayEvts.length > MAX_VISIBLE_EVENTS && (
+                    <span className="cal-event-more">+{dayEvts.length - MAX_VISIBLE_EVENTS} more</span>
+                  )}
                 </div>
               </div>
             );
