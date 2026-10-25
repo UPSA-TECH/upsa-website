@@ -65,19 +65,12 @@
   * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
 
-/* Entrance animation + stagger for lists/grids of cards. Pure CSS - no JS
-   needed, and it degrades gracefully (just appears instantly) for anyone
-   with reduced-motion on. */
-.pf-grid > *, .req-list > *, .conn-grid > *, .thread-list > .thread-item, .skill-pills > * {
-  animation: fadeInUp .45s var(--ease-out) backwards;
-}
-.pf-grid > *:nth-child(1), .req-list > *:nth-child(1), .conn-grid > *:nth-child(1) { animation-delay: 0ms; }
-.pf-grid > *:nth-child(2), .req-list > *:nth-child(2), .conn-grid > *:nth-child(2) { animation-delay: 40ms; }
-.pf-grid > *:nth-child(3), .req-list > *:nth-child(3), .conn-grid > *:nth-child(3) { animation-delay: 80ms; }
-.pf-grid > *:nth-child(4), .req-list > *:nth-child(4), .conn-grid > *:nth-child(4) { animation-delay: 120ms; }
-.pf-grid > *:nth-child(5), .req-list > *:nth-child(5), .conn-grid > *:nth-child(5) { animation-delay: 160ms; }
-.pf-grid > *:nth-child(6), .req-list > *:nth-child(6), .conn-grid > *:nth-child(6) { animation-delay: 200ms; }
-.pf-grid > *:nth-child(n+7), .req-list > *:nth-child(n+7), .conn-grid > *:nth-child(n+7) { animation-delay: 240ms; }
+/* Entrance animation used to stagger-fade every list/grid item in on mount
+   (up to ~700ms for the item/row items), which replayed in full every time
+   you navigated back to a page you'd already seen - most of these pages
+   render from data that's already cached, so there was nothing actually
+   loading, it just looked like the page was blinking/reloading itself.
+   Removed; the content just appears immediately now. */
 
 /* ---------- Skeleton loading ---------- */
 .skeleton {
