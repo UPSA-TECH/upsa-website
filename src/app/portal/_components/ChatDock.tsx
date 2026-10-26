@@ -8,7 +8,7 @@ import { useChatWidget } from '../_lib/ChatWidgetProvider';
 import ChatPopup from './ChatPopup';
 
 export default function ChatDock() {
-  const { state, currentUserId, isConnectionUnread } = usePortalData();
+  const { state, currentUserId, isConnectionUnread, unreadMessageCount } = usePortalData();
   const { openChats, minimized, openChat, toggleMinimize } = useChatWidget();
 
   const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId));
@@ -25,7 +25,8 @@ export default function ChatDock() {
       <div className="chat-dock-bar">
         <button className="chat-dock-bar-head" onClick={() => setBarOpen(o => !o)} aria-expanded={barOpen}>
           <MessageSquare size={16} />
-          <span>Messaging</span>
+          <span className="chat-dock-bar-label">Messaging</span>
+          {unreadMessageCount > 0 && <span className="count">{unreadMessageCount}</span>}
           {barOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
         </button>
         {barOpen && (

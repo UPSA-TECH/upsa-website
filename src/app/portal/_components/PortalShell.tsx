@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useClerk } from '@clerk/nextjs';
-import { LayoutDashboard, Compass, Inbox, Users, MessageSquare, UserCircle, Settings, LogOut, Menu, X, Bell, UserX } from 'lucide-react';
+import { LayoutDashboard, Compass, Inbox, Users, UserCircle, Settings, LogOut, Menu, X, Bell, UserX } from 'lucide-react';
 import { usePortalData } from '../_lib/PortalDataProvider';
 import { ApiError } from '../_lib/api';
 import Avatar from './Avatar';
@@ -13,12 +13,14 @@ import BrandMark from './BrandMark';
 import BugReportWidget from './BugReportWidget';
 import { useToast } from './Toast';
 
+// Messages isn't here - it already has its own always-visible entry point
+// (the chat dock in the bottom-right corner, see ChatDock), so a second one
+// in the sidebar was just a duplicate way into the same inbox.
 const NAV_ITEMS = [
   { href: '/portal/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/portal/discover', label: 'Discover', icon: Compass },
   { href: '/portal/requests', label: 'Requests', icon: Inbox, countKey: 'incoming' as const },
   { href: '/portal/connections', label: 'Connections', icon: Users },
-  { href: '/portal/messages', label: 'Messages', icon: MessageSquare, countKey: 'messages' as const },
   { href: '/portal/profile', label: 'My Profile', icon: UserCircle },
   { href: '/portal/settings', label: 'Settings', icon: Settings },
 ];
@@ -27,7 +29,7 @@ export default function PortalShell({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useClerk();
-  const { currentUser, currentUserId, state, setDeactivated, unreadMessageCount } = usePortalData();
+  const { currentUser, currentUserId, state, setDeactivated } = usePortalData();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -106,7 +108,6 @@ export default function PortalShell({ children }: { children: React.ReactNode })
               >
                 <span className="portal-nav-label"><Icon size={18} strokeWidth={2} />{item.label}</span>
                 {item.countKey === 'incoming' && incomingCount > 0 && <span className="count">{incomingCount}</span>}
-                {item.countKey === 'messages' && unreadMessageCount > 0 && <span className="count">{unreadMessageCount}</span>}
               </Link>
             );
           })}

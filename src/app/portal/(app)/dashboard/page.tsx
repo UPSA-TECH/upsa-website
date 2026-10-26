@@ -118,22 +118,33 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="pf-grid" style={{ marginBottom: 32 }}>
-          {suggested.map(pro => (
-            <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
-              <div className="pf-card-top">
-                <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
-                <div>
-                  <div className="pf-card-name">{pro.name}</div>
-                  <div className="pf-card-headline">{pro.role} &middot; {pro.company}</div>
+          {suggested.map(pro => {
+            const isStudentType = Boolean(pro.university && pro.major);
+            const isProfessionalType = Boolean(pro.company && pro.role);
+            return (
+              <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
+                <div className="pf-card-top">
+                  <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
+                  <div>
+                    <div className="pf-card-name">{pro.name}</div>
+                    {isProfessionalType && <div className="pf-card-headline">{pro.role} &middot; {pro.company}</div>}
+                  </div>
                 </div>
-              </div>
-              {pro.referralsAvailable && (
-                <div className="pf-card-avail">
-                  <span className="avail-pill referrals">Open to referrals</span>
-                </div>
-              )}
-            </Link>
-          ))}
+                {isStudentType && (
+                  <div className="pf-card-meta">
+                    <span>{pro.university}</span>
+                    <span>{pro.major}</span>
+                  </div>
+                )}
+                {pro.bio && <p className="pf-card-bio">{pro.bio}</p>}
+                {isProfessionalType && pro.referralsAvailable && (
+                  <div className="pf-card-avail">
+                    <span className="avail-pill referrals">Open to referrals</span>
+                  </div>
+                )}
+              </Link>
+            );
+          })}
         </div>
       )}
 
