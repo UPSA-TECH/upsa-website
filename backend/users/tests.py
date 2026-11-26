@@ -54,6 +54,12 @@ class ClerkTokenVerificationTests(TestCase):
         user, claims = self.authenticate(azp="https://unitedpsa.org")
         self.assertEqual(claims["sub"], "user_clock")
 
+    def test_valid_token_for_a_disabled_user_is_rejected(self):
+        user, _ = self.authenticate()
+        User.objects.filter(pk=user.pk).update(is_active=False)
+        with self.assertRaises(AuthenticationFailed):
+            self.authenticate()
+
     @override_settings(CLERK_AUTHORIZED_PARTIES=["https://unitedpsa.org"])
     def test_token_without_azp_is_still_accepted(self):
         user, claims = self.authenticate()

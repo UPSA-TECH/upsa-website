@@ -8,7 +8,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -55,6 +55,27 @@ def _connection_or_404(request, pk):
     return connection
 
 
+def _ensure_can_interact(user):
+    """Refuse anything that reaches out to another member (requests, accepts,
+    messages, resumes) from a disabled, suspended or self-deactivated account.
+    Hiding someone from Discover alone isn't enough - they'd still be able to
+    contact everyone they already know. Declining and cancelling stay allowed,
+    since those only ever reduce contact."""
+    if not user.is_active:
+        raise PermissionDenied("This account has been disabled.")
+    profile = Profile.objects.filter(user=user).only("hidden", "deactivated").first()
+    if profile is None:
+        return
+    if profile.deactivated:
+        raise PermissionDenied("Your account has been suspended.")
+    if profile.hidden:
+        raise PermissionDenied("Your account is deactivated. Reactivate it in Settings first.")
+
+
+def _visible_profiles():
+    return Profile.objects.filter(hidden=False, deactivated=False, user__is_active=True)
+
+
 # --- Member / profile ---------------------------------------------------
 
 
@@ -77,9 +98,11 @@ class MyProfileView(generics.RetrieveUpdateAPIView):
 
 class MemberProfileView(generics.RetrieveAPIView):
     serializer_class = ProfileSerializer
-    queryset = Profile.objects.filter(deactivated=False)
     lookup_url_kwarg = "user_id"
     lookup_field = "user_id"
+
+    def get_queryset(self):
+        return _visible_profiles()
 
 
 # --- Education / experience / certifications --------------------------------
@@ -272,7 +295,7 @@ class ProfessionalListView(generics.ListAPIView):
             or params.get("university") or params.get("referralsAvailable") == "true"
         )
 
-        qs = Profile.objects.filter(onboarding_complete=True, deactivated=False).exclude(user=user)
+        qs = _visible_profiles().filter(onboarding_complete=True).exclude(user=user)
 
         if not has_filters:
             connected_ids = set()
@@ -318,6 +341,7 @@ class ConnectionRequestListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user
+        _ensure_can_interact(user)
         to_user_id = serializer.validated_data["to_user_id"]
         if to_user_id == user.id:
             raise ValidationError("You can't send a request to yourself.")
@@ -353,6 +377,7 @@ def accept_request(request, pk):
     # open tabs) could otherwise both read status="pending" before either
     # commits, and the second would crash on the Connection's one-to-one
     # constraint instead of cleanly 404ing.
+    _ensure_can_interact(request.user)
     with transaction.atomic():
         req = get_object_or_404(
             ConnectionRequest.objects.select_for_update(), pk=pk, to_user=request.user, status="pending"
@@ -457,6 +482,7 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
         return Message.objects.filter(id__in=list(latest_ids)).order_by("created_at", "id")
 
     def perform_create(self, serializer):
+        _ensure_can_interact(self.request.user)
         connection = self._connection()
         if connection.status == "cancelled":
             raise ValidationError("This connection is cancelled, no new messages.")
@@ -469,6 +495,7 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
 
 @api_view(["POST"])
 def share_resume(request, pk):
+    _ensure_can_interact(request.user)
     connection = _connection_or_404(request, pk)
     file = request.FILES.get("file")
     if not file:

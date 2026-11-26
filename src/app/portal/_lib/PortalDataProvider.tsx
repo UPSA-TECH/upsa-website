@@ -70,6 +70,7 @@ type ApiProfile = {
   skills: string[];
   referralsAvailable: boolean;
   isProfessional: boolean;
+  hidden: boolean;
   deactivated: boolean;
   emailNotifications?: boolean;
   avatarUrl: string | null;
@@ -207,7 +208,8 @@ function toMember(p: ApiProfile): Member {
     skills: p.skills ?? [],
     referralsAvailable: p.referralsAvailable,
     isProfessional: p.isProfessional,
-    visible: !p.deactivated,
+    visible: !p.hidden && !p.deactivated,
+    suspended: p.deactivated,
     emailNotifications: p.emailNotifications ?? true,
     onboardingComplete: p.onboardingComplete,
     termsAccepted: p.termsAccepted,
@@ -284,6 +286,7 @@ const EMPTY_MEMBER: Member = {
   referralsAvailable: false,
   isProfessional: false,
   visible: false,
+  suspended: false,
   emailNotifications: true,
   onboardingComplete: false,
   termsAccepted: false,
@@ -331,7 +334,7 @@ type ProfileUpdate = Partial<{
   skills: string[];
   referralsAvailable: boolean;
   isProfessional: boolean;
-  deactivated: boolean;
+  hidden: boolean;
   emailNotifications: boolean;
   acceptTerms: boolean;
 }>;
@@ -948,11 +951,14 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
+  // The member's own deactivate/reactivate switch, which the backend calls
+  // "hidden". The backend's "deactivated" is an admin suspension and is
+  // read-only from here.
   const setDeactivated = useCallback(
     async (value: boolean) => {
       const updated = await call<ApiProfile>('/api/members/me/', {
         method: 'PATCH',
-        body: JSON.stringify({ deactivated: value }),
+        body: JSON.stringify({ hidden: value }),
       });
       const member = toMember(updated);
       setState(prev => ({ ...prev, members: { ...prev.members, [member.id]: member } }));

@@ -38,14 +38,15 @@ Any member can report a profile as fake or suspicious from that person's page. O
 
 1. Admin panel, **Portal, Profiles**. Filter by **Flagged for review**, or sort - flagged profiles are ordered first.
 2. Admin panel, **Portal, Profile reports** shows every individual report, including the reporter, who they reported, and any reason given, newest first.
-3. If it's genuinely fake: untick **Is professional** to remove them from Discover, or tick **Deactivated** to hide the whole profile. Reporting itself never auto-hides anyone - that decision is always yours.
+3. If it's genuinely fake: untick **Is professional** to remove them from Discover, or tick **Deactivated** to suspend them (see below). Reporting itself never auto-hides anyone - that decision is always yours.
 4. Flags don't clear themselves. Once you've reviewed one, untick **Flagged for review** so it drops off the list.
 
 ## Moderating a member
 
 | Goal | Do this |
 | --- | --- |
-| Hide someone from Discover | Profiles, tick **Deactivated**. Their profile page stops loading for others. They can turn it back on themselves in Settings, so this is not a ban. |
+| Suspend someone | Profiles, tick **Deactivated**. They vanish from Discover, their profile stops loading for others, and they can no longer send requests, accept, message or share resumes. They can't undo it themselves. (**Hidden** is the member's own Settings switch, which they can turn back off.) |
+| Lock someone out completely | Users, untick **Active**. Every API request from them is then refused, even with a valid Clerk sign-in. |
 | Remove someone completely | Do **both**: (1) Users, delete the user in the admin panel. This also deletes their profile, requests, connections, messages, resume and photo files. (2) In the Clerk dashboard, delete the user. If you only do (1), they can sign in again and start with a blank profile. If you only do (2), their portal data stays behind. |
 | Block someone from coming back | In the Clerk dashboard, **Ban** the user. |
 | A privacy/deletion request | Same as "Remove someone completely". Note that database backups keep old copies until they expire. |
@@ -99,7 +100,7 @@ Members are emailed when they receive a request, have one accepted, or get a mes
 | Resume download says not found | Correct behavior unless the requester is the one who sent it or the other member of the connection it was shared in. |
 | No notification emails | `CLERK_SECRET_KEY` or `EMAIL_HOST` is unset (emails are then off), the from-address isn't allowed by the provider, or the member opted out. Check the backend log. |
 | "You're doing that too quickly" | A rate limit was hit. It clears on its own, or on a backend restart. |
-| Discover is empty | Nobody has listed themselves as a professional yet (see above), or they're deactivated. |
+| Discover is empty | Nobody has listed themselves as a professional yet (see above), or they're hidden or suspended. |
 | Not sure what actually broke | If Sentry is set up (see deployment.md), check it first - it has the real stack trace. Not set up yet means errors are only in the host's logs. |
 | A member keeps landing on onboarding | Their profile has no name. Finishing onboarding fixes it. |
 | Portal works locally but not live | Compare environment variables against [deployment.md](deployment.md); `NEXT_PUBLIC_*` changes need a Netlify rebuild. |

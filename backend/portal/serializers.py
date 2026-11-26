@@ -74,6 +74,10 @@ class ProfileSerializer(serializers.ModelSerializer):
     isProfessional = serializers.BooleanField(source="is_professional", required=False)
     avatarUrl = serializers.SerializerMethodField()
     hasAvatar = serializers.SerializerMethodField()
+    # Admin-only suspension - shown so the portal can tell the member, never
+    # writable, or a suspended member could just PATCH it back off. The
+    # member's own deactivate/reactivate switch is "hidden".
+    deactivated = serializers.BooleanField(read_only=True)
     emailNotifications = serializers.BooleanField(source="email_notifications", required=False)
     onboardingComplete = serializers.BooleanField(source="onboarding_complete", read_only=True)
     termsAccepted = serializers.SerializerMethodField()
@@ -103,6 +107,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "skills",
             "referralsAvailable",
             "isProfessional",
+            "hidden",
             "deactivated",
             "avatarUrl",
             "hasAvatar",

@@ -61,7 +61,8 @@ isProfessional      boolean, default false. Self-serve - a member sets this them
                     the same request). No admin review step: there's no reliable way to verify
                     anyone's claimed employer anyway (same gap LinkedIn has). See "Reporting a
                     profile" below for the reactive alternative.
-deactivated         boolean, hides the profile from Discover and from other members
+hidden              boolean, the member's own deactivate/reactivate switch. Hides the profile from Discover and other members, and blocks sending requests, accepting, messaging and sharing resumes (403) until turned back off
+deactivated         boolean, READ-ONLY. Admin suspension: same effect as hidden, but the member can't lift it
 avatarUrl, hasAvatar   read only; the photo (see below)
 emailNotifications  boolean, default true. Only the owner ever sees this field.
 ```
@@ -70,7 +71,7 @@ emailNotifications  boolean, default true. Only the owner ever sees this field.
 | --- | --- |
 | `GET /api/members/me/` | Your profile. |
 | `PATCH /api/members/me/` | Partial update of any field above except `id`, `avatarUrl`, `hasAvatar`. Setting `isProfessional: true` without `company`/`role` filled in returns 400. |
-| `GET /api/members/{id}/` | Someone else's profile. 404 if they are deactivated. Never includes email or resume, and omits `emailNotifications`. |
+| `GET /api/members/{id}/` | Someone else's profile. 404 if they are hidden, suspended (deactivated) or their user is disabled. Never includes email or resume, and omits `emailNotifications`. |
 
 ### Reporting a profile
 

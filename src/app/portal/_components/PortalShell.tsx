@@ -140,7 +140,13 @@ export default function PortalShell({ children }: { children: React.ReactNode })
           )}
         </div>
         <div className="portal-content">
-          {currentUser.visible || needsOnboarding ? children : (
+          {currentUser.visible || needsOnboarding ? children : currentUser.suspended ? (
+            <div className="empty-state">
+              <UserX className="empty-state-icon" aria-hidden="true" />
+              <span>Your account has been suspended.</span>
+              <p style={{ marginTop: 14 }}>If you think this is a mistake, contact the UPSA team.</p>
+            </div>
+          ) : (
             <div className="empty-state">
               <UserX className="empty-state-icon" aria-hidden="true" />
               <span>Your account is deactivated.</span>

@@ -52,6 +52,8 @@ export type Member = {
   referralsAvailable: boolean;
   isProfessional: boolean;
   visible: boolean;
+  // Suspended by an admin - unlike self-deactivation, the member can't undo it.
+  suspended: boolean;
   emailNotifications: boolean;
   onboardingComplete: boolean;
   termsAccepted: boolean;

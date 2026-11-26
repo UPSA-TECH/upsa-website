@@ -54,6 +54,13 @@ class Profile(models.Model):
     # REPORTS_TO_FLAG reports instead flags a profile for an admin to look at
     # after the fact (see ProfileReport below).
     is_professional = models.BooleanField(default=False)
+    # Two separate switches because they answer to different people. hidden is
+    # the member's own "deactivate my account" from Settings - they can turn it
+    # back off any time. deactivated is the admin's suspension and is read-only
+    # through the API, otherwise moderating someone would be undone by a PATCH.
+    # Either one hides the member and blocks them from reaching out to anyone
+    # (see views._ensure_can_interact).
+    hidden = models.BooleanField(default=False)
     deactivated = models.BooleanField(default=False)
     email_notifications = models.BooleanField(default=True)
     flagged_for_review = models.BooleanField(default=False)

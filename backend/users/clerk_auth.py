@@ -66,7 +66,12 @@ class ClerkJWTAuthentication(BaseAuthentication):
         if authorized_party and allowed and authorized_party not in allowed:
             raise AuthenticationFailed("Token was issued for a different site.")
 
-        return (self._get_or_create_user(claims["sub"]), claims)
+        user = self._get_or_create_user(claims["sub"])
+        # Unticking "Active" on a user in the Django admin is the hard ban: a
+        # valid Clerk session is no longer enough to get in at all.
+        if not user.is_active:
+            raise AuthenticationFailed("This account has been disabled.")
+        return (user, claims)
 
     def _get_or_create_user(self, clerk_user_id):
         # The portal fires several requests at once on first load, so a brand

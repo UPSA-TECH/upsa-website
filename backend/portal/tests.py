@@ -106,16 +106,103 @@ class PortalApiTests(APITestCase):
         self.assertTrue(res.data["isProfessional"])
         self.assertTrue(Profile.objects.get(user=self.student).is_professional)
 
-    def test_a_deactivated_member_disappears_from_discover(self):
-        # deactivated, not isProfessional, is the real Discover opt-out now -
-        # see test_discover_needs_a_fully_completed_profile for why.
+    def test_a_self_deactivated_member_disappears_from_discover_and_can_come_back(self):
+        # hidden (the Settings "Deactivate account" switch), not isProfessional,
+        # is the real Discover opt-out - see
+        # test_discover_needs_a_fully_completed_profile for why.
         self.complete_profile(self.student)
         self.as_(self.student)
-        self.client.patch(reverse("my-profile"), {"deactivated": True}, format="json")
+        res = self.client.patch(reverse("my-profile"), {"hidden": True}, format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["hidden"])
 
         self.as_(self.mentor)
         ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
         self.assertNotIn(self.student.id, ids)
+        self.assertEqual(self.client.get(reverse("member-profile", args=[self.student.id])).status_code, 404)
+
+        self.as_(self.student)
+        self.client.patch(reverse("my-profile"), {"hidden": False}, format="json")
+        self.as_(self.mentor)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertIn(self.student.id, ids)
+
+    def test_a_member_cannot_lift_their_own_suspension(self):
+        self.complete_profile(self.student)
+        Profile.objects.filter(user=self.student).update(deactivated=True)
+
+        self.as_(self.student)
+        res = self.client.patch(reverse("my-profile"), {"deactivated": False, "hidden": False}, format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["deactivated"])
+        self.assertTrue(Profile.objects.get(user=self.student).deactivated)
+
+        self.as_(self.mentor)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertNotIn(self.student.id, ids)
+        self.assertEqual(self.client.get(reverse("member-profile", args=[self.student.id])).status_code, 404)
+
+    def test_a_disabled_user_disappears_from_discover(self):
+        self.complete_profile(self.student)
+        User.objects.filter(pk=self.student.pk).update(is_active=False)
+
+        self.as_(self.mentor)
+        ids = [m["id"] for m in self.client.get(reverse("professionals")).data["results"]]
+        self.assertNotIn(self.student.id, ids)
+        self.assertEqual(self.client.get(reverse("member-profile", args=[self.student.id])).status_code, 404)
+
+    def _restrict(self, user, how):
+        if how == "inactive":
+            User.objects.filter(pk=user.pk).update(is_active=False)
+            user.refresh_from_db()
+        else:
+            Profile.objects.update_or_create(user=user, defaults={how: True})
+
+    def test_restricted_accounts_cannot_reach_out_to_anyone(self):
+        third = User.objects.create(username="clerk:third")
+        for how in ("hidden", "deactivated", "inactive"):
+            with self.subTest(how=how):
+                student = User.objects.create(username=f"clerk:restricted-{how}")
+                self.complete_profile(student)
+                # an existing connection, and an incoming request waiting on them
+                req = ConnectionRequest.objects.create(from_user=student, to_user=self.mentor, request_type="connect", status="accepted")
+                connection = Connection.objects.create(request=req, member_a=student, member_b=self.mentor)
+                incoming = ConnectionRequest.objects.create(from_user=third, to_user=student, request_type="connect")
+                self._restrict(student, how)
+                self.as_(student)
+
+                res = self.client.post(reverse("requests"), {"toId": third.id, "requestType": "connect", "message": "hi"}, format="json")
+                self.assertEqual(res.status_code, 403)
+                self.assertFalse(ConnectionRequest.objects.filter(from_user=student, to_user=third).exists())
+
+                res = self.client.post(reverse("request-accept", args=[incoming.id]))
+                self.assertEqual(res.status_code, 403)
+                incoming.refresh_from_db()
+                self.assertEqual(incoming.status, "pending")
+
+                res = self.client.post(reverse("connection-messages", args=[connection.id]), {"text": "hello"}, format="json")
+                self.assertEqual(res.status_code, 403)
+
+                resume = _fake_file(b"%PDF-1.4 fake resume", "resume.pdf", "application/pdf")
+                res = self.client.post(reverse("connection-share-resume", args=[connection.id]), {"file": resume}, format="multipart")
+                self.assertEqual(res.status_code, 403)
+
+                self.assertFalse(Message.objects.filter(connection=connection).exists())
+                self.assertFalse(Resume.objects.filter(sender=student).exists())
+
+                # stepping back is still allowed
+                self.assertEqual(self.client.post(reverse("request-decline", args=[incoming.id])).status_code, 200)
+
+    def test_reactivating_restores_the_ability_to_reach_out(self):
+        self.complete_profile(self.student)
+        self.as_(self.student)
+        self.client.patch(reverse("my-profile"), {"hidden": True}, format="json")
+        blocked = self.client.post(reverse("requests"), {"toId": self.mentor.id, "requestType": "connect", "message": "hi"}, format="json")
+        self.assertEqual(blocked.status_code, 403)
+
+        self.client.patch(reverse("my-profile"), {"hidden": False}, format="json")
+        allowed = self.client.post(reverse("requests"), {"toId": self.mentor.id, "requestType": "connect", "message": "hi"}, format="json")
+        self.assertEqual(allowed.status_code, 201)
 
     # --- reporting -----------------------------------------------------
 

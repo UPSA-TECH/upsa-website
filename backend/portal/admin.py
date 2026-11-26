@@ -5,8 +5,8 @@ from .models import BugReport, Connection, ConnectionRequest, Message, Profile, 
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ["name", "user", "onboarding_complete", "is_professional", "company", "university", "flagged_for_review", "deactivated"]
-    list_filter = ["onboarding_complete", "is_professional", "flagged_for_review", "deactivated"]
+    list_display = ["name", "user", "onboarding_complete", "is_professional", "company", "university", "flagged_for_review", "hidden", "deactivated"]
+    list_filter = ["onboarding_complete", "is_professional", "flagged_for_review", "hidden", "deactivated"]
     search_fields = ["name", "company", "university", "user__username"]
     ordering = ["-flagged_for_review", "name"]
     fieldsets = [
@@ -23,17 +23,21 @@ class ProfileAdmin(admin.ModelAdmin):
             "description": "onboarding_complete is read-only here - it's recomputed automatically from "
                             "name/photo/bio/location plus either the student or professional fields, "
                             "every time the member saves their profile. A member shows up in Discover only "
-                            "when this is True AND deactivated is False. To filter the list below to who's "
-                            "actually discoverable right now, filter by Onboarding complete = Yes and "
-                            "Deactivated = No at the same time.",
+                            "when this is True AND both hidden and deactivated are False.",
         }),
         ("Moderation", {
-            "fields": ["flagged_for_review"],
-            "description": "Set automatically once enough members report this profile (see Reports below). "
-                            "Deactivate the account yourself if it turns out to be fake.",
+            "fields": ["flagged_for_review", "deactivated"],
+            "description": "flagged_for_review is set automatically once enough members report this profile "
+                            "(see Reports below). Tick deactivated to suspend someone: they disappear from "
+                            "Discover and can't send requests, messages or resumes, and unlike hidden they "
+                            "can't undo it themselves. To lock them out completely, untick Active on their "
+                            "user under Authentication and Authorization.",
         }),
         ("Availability", {"fields": ["referrals_available"]}),
-        ("Account", {"fields": ["deactivated", "email_notifications", "avatar"]}),
+        ("Account", {
+            "fields": ["hidden", "email_notifications", "avatar"],
+            "description": "hidden is the member's own Deactivate/Reactivate switch in Settings.",
+        }),
     ]
     readonly_fields = ["onboarding_complete", "terms_accepted_at"]
 
