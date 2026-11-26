@@ -2,20 +2,54 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { UserSearch, Flag } from 'lucide-react';
+import { UserSearch, Flag, MessageSquare } from 'lucide-react';
 import { usePortalData } from '../../../_lib/PortalDataProvider';
+import { useChatWidget } from '../../../_lib/ChatWidgetProvider';
 import { ApiError } from '../../../_lib/api';
+import type { Connection, ConnectionRequest } from '../../../_lib/types';
 import Avatar from '../../../_components/Avatar';
 import StatusPill from '../../../_components/StatusPill';
 import RoleTag from '../../../_components/RoleTag';
 import SendRequestModal from '../../../_components/SendRequestModal';
 import { useToast } from '../../../_components/Toast';
 
+type Relationship =
+  | { kind: 'self' }
+  | { kind: 'connected'; connection: Connection }
+  | { kind: 'incoming'; request: ConnectionRequest }
+  | { kind: 'outgoing'; request: ConnectionRequest }
+  | { kind: 'none' };
+
+// Mirrors what the backend will actually allow: an active connection in
+// either direction, or any pending request in either direction, blocks a new
+// request. Declined/cancelled requests and cancelled connections don't - those
+// people can be asked again - so only live rows are looked at, never "the
+// first request found", which could be an old declined one.
+function relationshipWith(
+  memberId: string,
+  currentUserId: string,
+  requests: ConnectionRequest[],
+  connections: Connection[]
+): Relationship {
+  if (memberId === currentUserId) return { kind: 'self' };
+  const connection = connections.find(
+    c => c.status === 'active' && c.memberIds.includes(memberId) && c.memberIds.includes(currentUserId)
+  );
+  if (connection) return { kind: 'connected', connection };
+  const pending = requests.filter(r => r.status === 'pending');
+  const incoming = pending.find(r => r.fromId === memberId && r.toId === currentUserId);
+  if (incoming) return { kind: 'incoming', request: incoming };
+  const outgoing = pending.find(r => r.fromId === currentUserId && r.toId === memberId);
+  if (outgoing) return { kind: 'outgoing', request: outgoing };
+  return { kind: 'none' };
+}
+
 export default function ProfessionalDetail({ id }: { id: string }) {
-  const { state, currentUserId, loadMember, reportMember } = usePortalData();
+  const { state, currentUserId, loadMember, reportMember, respondToRequest } = usePortalData();
+  const { openChat } = useChatWidget();
   const toast = useToast();
   const [modalOpen, setModalOpen] = useState(false);
-  const [justSent, setJustSent] = useState(false);
+  const [responding, setResponding] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
@@ -40,13 +74,13 @@ export default function ProfessionalDetail({ id }: { id: string }) {
     );
   }
 
-  const existingRequest = state.requests.find(r => r.fromId === currentUserId && r.toId === id);
-  const canRequest = !existingRequest || ['declined', 'cancelled'].includes(existingRequest.status);
+  const relationship = relationshipWith(id, currentUserId, state.requests, state.connections);
+  const firstName = professional.name.split(' ')[0];
   const isStudentType = Boolean(professional.university && professional.major);
   const isProfessionalType = Boolean(professional.company && professional.role);
 
   async function handleReport() {
-    if (!window.confirm(`Report ${professional.name.split(' ')[0]}'s profile as fake or suspicious?`)) return;
+    if (!window.confirm(`Report ${firstName}'s profile as fake or suspicious?`)) return;
     setReporting(true);
     try {
       await reportMember(id);
@@ -57,6 +91,51 @@ export default function ProfessionalDetail({ id }: { id: string }) {
     } finally {
       setReporting(false);
     }
+  }
+
+  async function handleRespond(requestId: string, decision: 'accepted' | 'declined') {
+    setResponding(true);
+    try {
+      await respondToRequest(requestId, decision);
+      toast(decision === 'accepted' ? `You're now connected with ${firstName}.` : 'Request declined.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not update that request. Try again.', 'error');
+    } finally {
+      setResponding(false);
+    }
+  }
+
+  let actions: React.ReactNode;
+  switch (relationship.kind) {
+    case 'self':
+      actions = <Link href="/portal/profile" className="btn-outline">Edit your profile</Link>;
+      break;
+    case 'connected':
+      actions = (
+        <button className="btn-primary" onClick={() => openChat(relationship.connection.id)}>
+          <MessageSquare size={15} /> Message
+        </button>
+      );
+      break;
+    case 'incoming':
+      actions = (
+        <>
+          <span className="pf-detail-actions-note">{firstName} sent you a request.</span>
+          <button className="btn-primary" disabled={responding} onClick={() => handleRespond(relationship.request.id, 'accepted')}>
+            Accept
+          </button>
+          <button className="btn-outline" disabled={responding} onClick={() => handleRespond(relationship.request.id, 'declined')}>
+            Decline
+          </button>
+        </>
+      );
+      break;
+    case 'outgoing':
+      actions = <StatusPill status="pending" />;
+      break;
+    case 'none':
+      actions = <button className="btn-primary" onClick={() => setModalOpen(true)}>Send connection request &rarr;</button>;
+      break;
   }
 
   return (
@@ -77,22 +156,16 @@ export default function ProfessionalDetail({ id }: { id: string }) {
           {isStudentType && <div className="headline">{professional.major} &middot; {professional.university}</div>}
           {professional.location && <div className="meta-line">{professional.location}</div>}
         </div>
-        <div className="pf-detail-actions">
-          {justSent || (existingRequest && existingRequest.status === 'pending') ? (
-            <StatusPill status="pending" />
-          ) : existingRequest && !canRequest ? (
-            <StatusPill status={existingRequest.status} />
-          ) : canRequest ? (
-            <button className="btn-primary" onClick={() => setModalOpen(true)}>Send connection request &rarr;</button>
-          ) : null}
-        </div>
+        <div className="pf-detail-actions">{actions}</div>
       </div>
 
-      <p style={{ marginBottom: 20 }}>
-        <button className="btn-ghost" onClick={handleReport} disabled={reported || reporting}>
-          <Flag size={15} /> {reported ? 'Reported' : reporting ? 'Reporting…' : 'Report this profile'}
-        </button>
-      </p>
+      {relationship.kind !== 'self' && (
+        <p style={{ marginBottom: 20 }}>
+          <button className="btn-ghost" onClick={handleReport} disabled={reported || reporting}>
+            <Flag size={15} /> {reported ? 'Reported' : reporting ? 'Reporting…' : 'Report this profile'}
+          </button>
+        </p>
+      )}
 
       <div className="detail-card">
         <h3>About</h3>
@@ -106,7 +179,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
             <span className="avail-pill referrals">Considers referrals</span>
           </div>
           <p style={{ marginTop: 12, fontSize: 12.5, color: 'var(--ink-3)' }}>
-            A referral is never guaranteed. It&apos;s entirely {professional.name.split(' ')[0]}&apos;s discretion.
+            A referral is never guaranteed. It&apos;s entirely {firstName}&apos;s discretion.
           </p>
         </div>
       )}
@@ -177,7 +250,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
         <SendRequestModal
           professional={professional}
           onClose={() => setModalOpen(false)}
-          onSent={() => { setModalOpen(false); setJustSent(true); }}
+          onSent={() => setModalOpen(false)}
         />
       )}
     </>

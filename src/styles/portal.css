@@ -555,6 +555,7 @@
 .pf-detail-info .headline { font-size: 15px; color: var(--ink-3); margin-top: 4px; }
 .pf-detail-info .meta-line { font-size: 13px; color: var(--ink-3); margin-top: 10px; }
 .pf-detail-actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.pf-detail-actions-note { flex-basis: 100%; font-size: 13px; color: var(--ink-3); }
 
 /* No mount animation here either - .detail-card is reused on Dashboard,
    Profile, Settings, and this detail page, so it was replaying a fade-in on
