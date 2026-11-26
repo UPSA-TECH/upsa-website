@@ -67,7 +67,9 @@ export default function RequestsPage() {
         <div className="empty-state">
           <Inbox className="empty-state-icon" aria-hidden="true" />
           <span>{tab === 'incoming' ? "No incoming requests yet." : "You haven't sent any requests yet."}</span>
-          {tab === 'outgoing' && <p style={{ marginTop: 14 }}><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></p>}
+          {tab === 'outgoing' && (
+            <div className="empty-state-actions"><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></div>
+          )}
         </div>
       ) : (
         <div className="req-list">
@@ -104,7 +106,7 @@ export default function RequestsPage() {
                   )}
                   {tab === 'outgoing' && r.status === 'pending' && (
                     <div className="req-card-actions">
-                      <button className="btn-ghost" onClick={() => handleCancel(r.id)} disabled={busy}>
+                      <button className="btn-ghost danger" onClick={() => handleCancel(r.id)} disabled={busy}>
                         <Ban size={15} /> Cancel request
                       </button>
                     </div>

@@ -42,7 +42,7 @@ export default function ConnectionsPage() {
         <div className="empty-state">
           <Users className="empty-state-icon" aria-hidden="true" />
           <span>No connections yet. Accepted requests will show up here.</span>
-          <p style={{ marginTop: 14 }}><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></p>
+          <div className="empty-state-actions"><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></div>
         </div>
       ) : (
         <div className="conn-grid">
@@ -82,7 +82,7 @@ export default function ConnectionsPage() {
                 </div>
                 {c.status !== 'cancelled' && (
                   <button
-                    className="btn-ghost"
+                    className="btn-ghost danger"
                     style={{ alignSelf: 'flex-start' }}
                     disabled={busy}
                     onClick={() => run(c.id, () => cancelConnection(c.id), 'Connection cancelled.', 'Could not cancel that connection. Try again.')}

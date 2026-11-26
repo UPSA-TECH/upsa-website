@@ -144,17 +144,17 @@ export default function PortalShell({ children }: { children: React.ReactNode })
             <div className="empty-state">
               <UserX className="empty-state-icon" aria-hidden="true" />
               <span>Your account has been suspended.</span>
-              <p style={{ marginTop: 14 }}>If you think this is a mistake, contact the UPSA team.</p>
+              <p className="empty-state-note">If you think this is a mistake, contact the UPSA team.</p>
             </div>
           ) : (
             <div className="empty-state">
               <UserX className="empty-state-icon" aria-hidden="true" />
               <span>Your account is deactivated.</span>
-              <p style={{ marginTop: 14 }}>
+              <div className="empty-state-actions">
                 <button className="btn-primary btn-sm" onClick={handleReactivate} disabled={reactivating}>
                   {reactivating ? 'Working…' : 'Reactivate account'}
                 </button>
-              </p>
+              </div>
             </div>
           )}
         </div>

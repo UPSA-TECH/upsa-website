@@ -69,7 +69,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
       <div className="empty-state">
         <UserSearch className="empty-state-icon" aria-hidden="true" />
         <span>We couldn&apos;t find that profile.</span>
-        <p style={{ marginTop: 14 }}><Link href="/portal/discover" className="btn-outline btn-sm">Back to Discover</Link></p>
+        <div className="empty-state-actions"><Link href="/portal/discover" className="btn-outline btn-sm">Back to Discover</Link></div>
       </div>
     );
   }
@@ -161,7 +161,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
 
       {relationship.kind !== 'self' && (
         <p style={{ marginBottom: 20 }}>
-          <button className="btn-ghost" onClick={handleReport} disabled={reported || reporting}>
+          <button className="btn-ghost danger" onClick={handleReport} disabled={reported || reporting}>
             <Flag size={15} /> {reported ? 'Reported' : reporting ? 'Reporting…' : 'Report this profile'}
           </button>
         </p>

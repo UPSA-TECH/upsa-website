@@ -79,6 +79,7 @@ export type ConnectionRequest = {
   message: string;
   status: RequestStatus;
   createdAt: string;
+  createdAtIso: string;
 };
 
 export type ConnectionStatus = 'active' | 'cancelled';
@@ -101,6 +102,7 @@ export type ChatMessage = {
   senderId: string;
   text: string;
   time: string;
+  createdAtIso: string;
   // Set when this message is a resume sent straight from someone's computer
   // instead of plain text - renders as a resume card bubble. resumeId is
   // null if that particular upload is no longer available.

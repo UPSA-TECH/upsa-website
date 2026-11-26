@@ -22,6 +22,20 @@
 
   --ease-out: cubic-bezier(.16, 1, .3, 1);
   --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  /* Destructive actions, and the gold used for "pending"/"referrals" text -
+     darkened from #8A6A1F so 10-11px labels clear WCAG AA on their tint. */
+  --danger: #8C3B2E;
+  --gold-ink: #6F5414;
+}
+
+/* Portal-only contrast fix: the site-wide --ink-3 (#6B7268) is just under
+   4.5:1 on paper and ~4:1 on paper-deep, too faint for the portal's many
+   small muted labels. Scoped here so the public site is unchanged. Also tints
+   native checkboxes/radios to the theme instead of browser blue. */
+.portal-shell, .portal-guest, .chat-dock, .modal-overlay, .toast-stack {
+  --ink-3: #5C6359;
+  accent-color: var(--moss);
 }
 
 /* lucide icons are thin-stroke SVGs - at the small sizes used throughout the
@@ -39,8 +53,28 @@
   font-variation-settings: "opsz" 72, "SOFT" 60;
 }
 .empty-state-icon { width: 38px; height: 38px; color: var(--ink-2); opacity: .65; margin: 0 auto 16px; display: block; }
+/* CTAs under an empty-state line. A <div>, not a <p>: globals.css turns any
+   .empty-state p into 20px italic Fraunces, and the buttons inherited it. */
+.empty-state-actions { margin-top: 16px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.empty-state.compact { padding: 36px 20px; }
+/* A secondary line under the headline - plain text, smaller than it. */
+.empty-state p.empty-state-note { margin-top: 10px; font-family: 'Geist', sans-serif; font-style: normal; font-size: 14px; color: var(--ink-3); }
 
-:focus-visible { outline: 2px solid var(--moss); outline-offset: 3px; border-radius: 3px; }
+/* An inline text link inside running copy or a card. */
+.text-link { color: var(--moss); font-weight: 600; text-decoration: none; transition: color .15s; }
+.text-link:hover { color: var(--moss-mid); text-decoration: underline; text-underline-offset: 3px; }
+
+/* No border-radius here: it used to override pill buttons' radius, so a
+   keyboard-focused button turned into a square-cornered rectangle. */
+:focus-visible { outline: 2px solid var(--moss); outline-offset: 3px; }
+/* A moss ring disappears on the moss-dark surfaces - use white there. */
+.portal-sidebar :focus-visible,
+.chat-popup-head :focus-visible,
+.toast :focus-visible { outline-color: #fff; }
+.chat-dock-bar-head:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+/* all: unset wiped the outline on these two. */
+.bug-tab:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+.toast-action:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(10px); }
@@ -117,7 +151,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 40px;
+  padding: 24px 72px; /* same left edge as the hero copy and steps below */
   border-bottom: var(--hairline);
 }
 .portal-guest-brand { color: var(--ink); text-decoration: none; }
@@ -134,99 +168,88 @@
 .brand-mark-text strong { font-family: 'Fraunces', serif; font-weight: 600; font-size: 19px; letter-spacing: -.01em; color: inherit; }
 .brand-mark-text small { font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: inherit; opacity: .8; }
 
-.portal-hero-split {
-  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); align-items: stretch;
-  min-height: 600px;
+/* ---------- Portal entry: landing + sign-in on one page (/portal) ----------
+   Desktop: the pitch on the left (intro on top, details below it) and the
+   auth card on the right inside a moss panel. Phone: intro, then the card,
+   then details - so the form is never pushed below a screen of copy. */
+.portal-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  grid-template-areas: "intro visual";
+  /* Exactly one screen under the header on desktop - no page scroll. */
+  min-height: calc(100vh - 95px); min-height: calc(100dvh - 95px); /* the guest header's height */
 }
-.portal-hero-copy { padding: 64px 56px; display: flex; flex-direction: column; justify-content: center; max-width: 620px; }
-.portal-hero-copy .sec-tag { margin-bottom: 18px; }
-.portal-hero-copy h1 {
+.portal-entry-intro { grid-area: intro; align-self: center; padding: 40px 56px 40px 72px; max-width: 660px; }
+.portal-entry-intro .sec-tag { margin-bottom: 18px; }
+.portal-entry-intro h1 {
   font-family: 'Fraunces', serif;
   font-weight: 300;
-  font-size: clamp(36px, 4.2vw, 58px);
+  font-size: clamp(36px, 4vw, 56px);
   line-height: 1.06;
   letter-spacing: -.025em;
   color: var(--ink);
   font-variation-settings: "opsz" 144, "SOFT" 30;
 }
-.portal-hero-copy h1 em { font-style: italic; font-weight: 400; color: var(--moss); }
-.portal-hero-copy p.lede {
-  margin-top: 20px;
-  font-size: 16.5px;
-  line-height: 1.75;
-  color: var(--ink-2);
-  max-width: 50ch;
+.portal-entry-intro h1 em { font-style: italic; font-weight: 400; color: var(--moss); }
+.portal-entry-intro p.lede { margin-top: 20px; font-size: 16.5px; line-height: 1.75; color: var(--ink-2); max-width: 50ch; }
+.portal-hero-fine {
+  margin-top: 28px; padding-top: 20px; border-top: var(--hairline);
+  font-size: 13px; line-height: 1.65; color: var(--ink-3); max-width: 52ch;
 }
-.portal-hero-actions { display: flex; gap: 14px; margin-top: 32px; flex-wrap: wrap; }
-.portal-hero-fine { margin-top: 28px; font-size: 12.5px; line-height: 1.6; color: var(--ink-3); border-left: 2px solid var(--rule); padding-left: 14px; max-width: 48ch; }
+.portal-hero-fine strong { color: var(--moss); font-weight: 600; }
 
-.portal-hero-panel {
-  position: relative; overflow: hidden;
-  background: linear-gradient(165deg, var(--moss-deep), var(--moss-mid) 72%, #357a4e);
-  color: #fff; padding: 56px; display: flex; flex-direction: column; justify-content: center;
+/* Right-hand panel holding the auth card. Without public/portal-hero.jpg it's
+   the moss gradient with soft highlights; with it, the photo sits under a
+   moss wash so the white card always reads clearly on top. */
+.portal-entry-visual {
+  grid-area: visual; position: relative; overflow: hidden; isolation: isolate;
+  margin: 16px 16px 16px 0; border-radius: var(--radius-xl);
+  background: linear-gradient(160deg, var(--moss-deep), var(--moss-mid) 70%, #357a4e);
+  display: flex; align-items: center; justify-content: center; padding: 24px 32px;
 }
-.portal-hero-panel::before {
-  content: ''; position: absolute; inset: -20% -15% auto auto; width: 440px; height: 440px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,.08), transparent 70%);
+.portal-entry-visual::before {
+  content: ''; position: absolute; inset: -18% -12% auto auto; width: 460px; height: 460px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.10), transparent 70%); z-index: -1;
 }
-.portal-hero-panel::after {
-  content: ''; position: absolute; left: -14%; bottom: -16%; width: 360px; height: 360px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,.06), transparent 70%);
-}
-.portal-hero-panel .sec-tag { position: relative; color: rgba(255,255,255,.7); margin-bottom: 26px; }
-.portal-hero-steps { position: relative; display: flex; flex-direction: column; gap: 6px; }
-.portal-hero-steps li {
-  display: flex; align-items: flex-start; gap: 18px; padding: 22px 14px;
-  border-top: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px;
-  transition: background .18s;
-}
-.portal-hero-steps li:hover { background: rgba(255,255,255,.055); }
-.portal-hero-steps li:last-child { border-bottom: 1px solid rgba(255,255,255,.12); }
-.portal-hero-step-num { font-family: 'Geist Mono', monospace; font-size: 12px; color: rgba(255,255,255,.4); margin-top: 8px; }
-.portal-hero-steps .portal-hero-step-icon {
-  display: flex; align-items: center; justify-content: center; flex: none;
-  width: 52px; height: 52px; border-radius: 14px;
-  background: #fff; color: var(--moss-deep);
-  box-shadow: 0 10px 22px rgba(0,0,0,.22);
-}
-.portal-hero-steps strong { display: block; font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; color: #fff; margin-bottom: 5px; }
-.portal-hero-steps span { display: block; font-size: 13.5px; line-height: 1.65; color: rgba(255,255,255,.74); }
-
-/* ---------- Split auth screens (sign-in / sign-up) ---------- */
-.portal-auth-shell { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-
-.portal-auth-intro {
-  position: relative; overflow: hidden;
-  background: linear-gradient(165deg, var(--moss-deep), var(--moss-mid) 72%, #357a4e);
-  color: #fff; padding: 64px 60px; display: flex; align-items: center;
-}
-.portal-auth-intro::before {
-  content: ''; position: absolute; inset: -20% -10% auto auto; width: 460px; height: 460px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,.08), transparent 70%);
-}
-.portal-auth-intro::after {
+.portal-entry-visual::after {
   content: ''; position: absolute; left: -12%; bottom: -18%; width: 380px; height: 380px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,.06), transparent 70%);
+  background: radial-gradient(circle, rgba(232,195,107,.10), transparent 70%); z-index: -1;
 }
-.portal-auth-intro-inner { position: relative; max-width: 420px; animation: fadeInUp .5s var(--ease-out); }
-.portal-auth-intro .sec-tag { color: rgba(255,255,255,.7); }
-.portal-auth-intro h2 {
-  font-family: 'Fraunces', serif; font-weight: 300; font-size: clamp(28px, 3vw, 38px); line-height: 1.12;
-  letter-spacing: -.02em; color: #fff;
+.portal-entry-visual.has-image::before {
+  inset: 0; width: auto; height: auto; border-radius: 0; z-index: 1;
+  background: linear-gradient(200deg, rgba(14,44,27,.25), rgba(14,44,27,.72));
 }
-.portal-auth-intro h2 em { font-style: italic; font-weight: 400; }
-.portal-auth-intro > .portal-auth-intro-inner > p {
-  margin-top: 16px; font-size: 15px; line-height: 1.7; color: rgba(255,255,255,.78);
+.portal-entry-visual.has-image::after { display: none; }
+.portal-entry-visual-img { object-fit: cover; z-index: 0; }
+
+/* The one card. Clerk's own card chrome is removed in
+   src/lib/portal-clerk-appearance.ts, so there's no card-inside-a-card. */
+.portal-auth-card.portal-entry-card { position: relative; z-index: 2; max-width: 440px; padding: 26px 32px 20px; animation: none; }
+.portal-entry-card-title { margin: 20px 0 4px; font-family: 'Fraunces', serif; font-weight: 500; font-size: 26px; line-height: 1.2; color: var(--ink); }
+.portal-entry-card p.sub { margin-bottom: 18px; }
+.portal-entry-card .portal-auth-foot { margin-top: 16px; }
+
+/* Sign in / Create account switch. */
+.auth-switch { display: flex; gap: 4px; padding: 4px; background: var(--paper-deep); border-radius: var(--radius-pill); }
+.auth-switch button {
+  flex: 1; height: 38px; border-radius: var(--radius-pill);
+  font-family: 'Geist', sans-serif; font-size: 13.5px; font-weight: 500; color: var(--ink-2);
+  transition: background .15s, color .15s, box-shadow .15s;
 }
-.portal-auth-points { margin-top: 36px; display: flex; flex-direction: column; gap: 18px; }
-.portal-auth-points li {
-  display: flex; align-items: flex-start; gap: 13px; font-size: 13.5px; line-height: 1.6; color: rgba(255,255,255,.88);
+.auth-switch button:hover { color: var(--moss); }
+.auth-switch button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
+.auth-switch-link {
+  padding: 0; background: none; border: none; font: inherit; font-weight: 600; color: var(--moss); cursor: pointer;
 }
-.portal-auth-points svg {
-  flex: none; width: 19px; height: 19px; margin-top: 1px; color: #fff; opacity: .85;
-}
-.portal-auth-form-side { display: flex; align-items: center; justify-content: center; padding: 48px 20px; }
+.auth-switch-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Holds the space while Clerk's form loads, so the card doesn't jump. */
+.auth-skeleton { display: flex; flex-direction: column; gap: 16px; min-height: 250px; }
+.auth-skeleton > span { display: block; background: var(--paper-deep); }
+.auth-skeleton-pill { height: 48px; border-radius: var(--radius-pill); }
+.auth-skeleton-pill.dark { background: var(--moss-soft) !important; }
+.auth-skeleton-line { height: 1px; margin: 6px 0; }
+.auth-skeleton-field { height: 48px; border-radius: var(--radius-sm); }
 
 /* Auth / onboarding centered card */
 .portal-auth-wrap {
@@ -278,41 +301,6 @@
 .portal-auth-foot { margin-top: 26px; font-size: 13px; color: var(--ink-3); text-align: center; }
 .portal-auth-foot a { color: var(--moss); font-weight: 500; }
 
-/* Clerk's <SignIn>/<SignUp> rendered inside .portal-auth-card, minus its own card chrome */
-.portal-clerk-root, .portal-clerk-cardbox { width: 100%; }
-.portal-clerk-card { width: 100%; padding: 0; margin: 0; background: transparent; border: none; box-shadow: none; }
-.portal-clerk-header { display: none; }
-
-/* Clerk's own internal spacing reads cramped at this card width - give its
-   rows real breathing room instead. These target Clerk's documented, stable
-   element classnames (cl-*), not the unstable cl-internal-* ones.
-   overflow:hidden on the card also clips any of Clerk's own corner/badge
-   decoration (most visible on a development instance) at the card's edge. */
-.portal-auth-card { overflow: hidden; }
-.portal-clerk-card .cl-main { gap: 18px; }
-.portal-clerk-card .cl-socialButtons { gap: 10px; }
-.portal-clerk-card .cl-socialButtonsBlockButton {
-  position: relative;
-  padding: 12px 16px; border: 1.5px solid var(--rule);
-  border-radius: var(--radius-sm) !important; /* Clerk sets its own radius inline, which otherwise wins over this rule regardless of specificity */
-  transition: border-color .18s, background .18s;
-}
-.portal-clerk-card .cl-socialButtonsBlockButton:hover { border-color: var(--moss); background: var(--paper); }
-.portal-clerk-card .cl-dividerRow { margin: 22px 0; }
-.portal-clerk-card .cl-formFieldRow { margin-bottom: 16px; }
-.portal-clerk-card .cl-formButtonPrimary { padding: 13px 20px; margin-top: 6px; }
-.portal-clerk-card .cl-footer { margin-top: 22px; padding-top: 18px; }
-.portal-clerk-card .cl-badge { display: none; }
-/* The "last used" pill Clerk shows on a social button: styled to match UPSA's
-   palette and positioned to sit fully on the card, not clipped by its edge. */
-.portal-clerk-card .cl-lastAuthenticationStrategyBadge {
-  position: absolute; top: -9px; right: 10px; z-index: 2;
-  background: var(--moss); color: #fff;
-  font-family: 'Geist Mono', monospace; font-size: 9.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-  padding: 3px 9px; border-radius: 999px; line-height: 1.4; white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0,0,0,.14);
-}
-
 .type-choice-field { border: none; padding: 0; margin: 0 0 18px; }
 .type-choice-field legend {
   font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
@@ -326,6 +314,8 @@
 }
 .type-choice:hover { border-color: var(--moss); transform: translateY(-1px); }
 .type-choice input { position: absolute; opacity: 0; width: 0; height: 0; }
+/* The real radio is invisible, so show its keyboard focus on the pill. */
+.type-choice:has(input:focus-visible) { outline: 2px solid var(--moss); outline-offset: 2px; }
 .type-choice.active { background: var(--moss); border-color: var(--moss); color: #fff; box-shadow: var(--shadow-moss); }
 
 /* Onboarding step pips */
@@ -361,8 +351,13 @@
   color: rgba(255,255,255,.82);
   display: flex;
   flex-direction: column;
-  position: sticky;
+  /* Fixed, not sticky: globals.css puts overflow-x: hidden on both html and
+     body, which turns body into a scroll container that never scrolls, so
+     position: sticky had nothing to stick to and the sidebar scrolled away
+     with the page. Fixed doesn't depend on any ancestor. */
+  position: fixed;
   top: 0;
+  left: 0;
   height: 100vh;
   height: 100dvh;
 }
@@ -450,7 +445,7 @@
 }
 .portal-sidebar-foot a:hover, .portal-sidebar-foot button:hover { color: #fff; }
 
-.portal-main { flex: 1; min-width: 0; }
+.portal-main { flex: 1; min-width: 0; margin-left: 260px; /* the fixed sidebar's width */ }
 .portal-topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 36px; border-bottom: 1px solid transparent; background: var(--paper);
@@ -533,7 +528,7 @@
   font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
   padding: 4px 9px; border-radius: 999px; transition: transform .15s;
 }
-.avail-pill.referrals { background: rgba(138,106,31,.14); color: #8A6A1F; }
+.avail-pill.referrals { background: rgba(138,106,31,.14); color: var(--gold-ink); }
 
 .role-tag {
   font-family: 'Geist Mono', monospace; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase;
@@ -544,7 +539,7 @@
 
 /* ---------- Status pills (requests / connections) ---------- */
 .status-pill { font-family: 'Geist Mono', monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
-.status-pending { background: rgba(138,106,31,.14); color: #8A6A1F; }
+.status-pending { background: rgba(138,106,31,.14); color: var(--gold-ink); }
 .status-accepted, .status-active { background: rgba(31,77,50,.12); color: var(--moss); }
 .status-declined { background: rgba(26,31,24,.08); color: var(--ink-3); }
 .status-expired { background: rgba(26,31,24,.08); color: var(--ink-3); }
@@ -589,6 +584,35 @@
   box-shadow: var(--shadow-sm); transition: box-shadow .25s, transform .25s;
 }
 .req-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+/* An activity row that isn't itself clickable (only the name links) - no
+   lift, or it reads as a button. */
+.req-card-static:hover { box-shadow: var(--shadow-sm); transform: none; }
+a.req-card-name { text-decoration: none; }
+
+/* ---------- Dashboard: "Needs your attention" ---------- */
+.attention-list { list-style: none; display: flex; flex-direction: column; }
+.attention-list > li + li { border-top: var(--hairline); }
+.attention-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.attention-row-button {
+  text-align: left; background: none; border: none; font: inherit; color: inherit; cursor: pointer;
+  border-radius: var(--radius-md); padding: 10px 8px; margin: 0 -8px; width: calc(100% + 16px); transition: background .15s;
+}
+.attention-row-button:hover { background: var(--paper-deep); }
+.attention-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.attention-row-title {
+  display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; color: var(--ink);
+  text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+a.attention-row-title:hover { color: var(--moss); }
+.attention-row-preview { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attention-row-time { flex: none; font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--ink-3); }
+.attention-row-body .attention-row-time { flex: initial; }
+.attention-row-actions { display: flex; gap: 6px; flex: none; }
+.attention-empty { display: flex; align-items: flex-start; gap: 12px; color: var(--moss); }
+.attention-empty > svg { flex: none; margin-top: 2px; }
+.attention-empty strong { display: block; font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+.attention-empty .text-link { font-size: 13.5px; }
+.detail-card .attention-more { margin-top: 10px; font-size: 12.5px; color: var(--ink-3); }
 .req-card-body { flex: 1; min-width: 0; }
 .req-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .req-card-name { font-weight: 600; font-size: 14.5px; color: var(--ink); transition: color .15s; }
@@ -604,12 +628,35 @@
 .btn-outline.btn-sm { padding: 7px 17px; }
 .btn-primary:active, .btn-outline:active, .btn-sm:active { transform: scale(.97); }
 .btn-primary:disabled, .btn-outline:disabled, .btn-sm:disabled { opacity: .55; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+/* globals.css's hovers aren't gated on :disabled - a disabled outline button
+   still filled moss on hover. Put the resting look back. */
+.btn-primary:disabled:hover { background: var(--moss); }
+.btn-outline:disabled:hover { background: transparent; color: var(--moss); }
 .btn-ghost {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: 'Geist Mono', monospace; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--ink-3); padding: 8px 4px; transition: color .15s;
+  color: var(--ink-3); padding: 8px 4px; border-radius: var(--radius-sm); transition: color .15s;
 }
-.btn-ghost:hover { color: var(--danger, #8C3B2E); }
+/* Neutral by default; only destructive ghost buttons (.danger) go red. */
+.btn-ghost:hover:not(:disabled) { color: var(--moss); }
+.btn-ghost.danger:hover:not(:disabled) { color: var(--danger); }
+.btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Destructive outline button (Delete account). */
+.btn-outline.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-outline.btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.btn-outline.btn-danger:disabled:hover { background: transparent; color: var(--danger); }
+
+/* Icon-only button (edit/delete on profile entries). 36px square keeps it a
+   comfortable tap target; 40px on touch screens below. */
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 36px; height: 36px; border-radius: 50%; color: var(--ink-3);
+  transition: background .15s, color .15s;
+}
+.btn-icon:hover:not(:disabled) { background: var(--paper-deep); color: var(--moss); }
+.btn-icon.danger:hover:not(:disabled) { color: var(--danger); }
+.btn-icon:disabled { opacity: .5; cursor: not-allowed; }
 
 .tabs { display: flex; gap: 4px; border-bottom: var(--hairline); margin-bottom: 22px; }
 .tabs button {
@@ -646,18 +693,28 @@
 .thread-item:last-child { border-bottom: none; }
 .thread-item:hover { background: var(--paper-deep); }
 .thread-item.active { background: var(--moss-soft); }
+/* min-width: 0 lets the preview's ellipsis kick in instead of the row
+   pushing wider than a phone screen. */
+.thread-item-body { flex: 1; min-width: 0; }
 .thread-item-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.thread-item-time { margin-left: auto; flex: none; font-family: 'Geist Mono', monospace; font-size: 10.5px; font-weight: 400; color: var(--ink-3); }
 .thread-item-preview { font-size: 12px; color: var(--ink-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .thread-item-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--moss); flex: none; }
 
 /* Shared by the inbox list and the floating chat popups below */
 .chat-scroll { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-.chat-bubble { max-width: 78%; padding: 11px 15px; border-radius: 16px; font-size: 13.5px; line-height: 1.55; animation: fadeInUp .3s var(--ease-out); }
+/* No entry animation on bubbles: opening a chat would replay it on the
+   whole history at once (same reason the list/grid staggers were removed). */
+.chat-bubble { max-width: 78%; padding: 11px 15px; border-radius: 16px; font-size: 13.5px; line-height: 1.55; }
 .chat-bubble.theirs { align-self: flex-start; background: var(--paper-deep); color: var(--ink); border-bottom-left-radius: 4px; }
 .chat-bubble.mine { align-self: flex-end; background: var(--moss); color: #fff; border-bottom-right-radius: 4px; box-shadow: var(--shadow-moss); }
 .chat-bubble .time { display: block; font-size: 10px; opacity: .6; margin-top: 5px; }
 .chat-bubble.has-attachment { padding: 0; background: transparent; box-shadow: none; max-width: 86%; }
 .chat-bubble.has-attachment .time { padding: 0 2px; color: var(--ink-3); opacity: 1; }
+.chat-bubble.mine .time { text-align: right; }
+.chat-day-sep { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+.chat-day-sep::before, .chat-day-sep::after { content: ''; flex: 1; border-top: var(--hairline); }
+.chat-day-sep span { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .chat-input-row { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-top: var(--hairline); }
 .chat-input-row input { flex: 1; padding: 11px 14px; border: 1.5px solid var(--rule); border-radius: var(--radius-pill); font-size: 13.5px; transition: border-color .18s, box-shadow .18s; }
 .chat-input-row input:focus { border-color: var(--moss); outline: none; box-shadow: 0 0 0 3px var(--moss-soft); }
@@ -701,9 +758,18 @@
   background: rgba(255,255,255,.16); color: #fff;
 }
 .chat-dock-list { max-height: 320px; overflow-y: auto; padding: 6px; animation: fadeIn .15s var(--ease-out); }
-.chat-dock-item { display: block; width: 100%; text-align: left; background: none; border: none; font: inherit; cursor: pointer; padding: 9px 10px; border-radius: 8px; transition: background .15s; }
+.chat-dock-item { position: relative; display: block; width: 100%; text-align: left; background: none; border: none; font: inherit; cursor: pointer; padding: 10px; border-radius: 8px; transition: background .15s; }
+/* Divider between conversations, inset to the text so a hovered row's
+   rounded background never paints over the line above or below it. */
+.chat-dock-item + .chat-dock-item::before {
+  content: ''; position: absolute; top: 0; left: 10px; right: 10px; border-top: var(--hairline);
+}
+.chat-dock-item:hover::before, .chat-dock-item:hover + .chat-dock-item::before { opacity: 0; }
 .chat-dock-item:hover { background: var(--paper-deep); }
-.chat-dock-item-name { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.chat-dock-item-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.chat-dock-item-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+.chat-dock-item-time { flex: none; font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--ink-3); }
+.chat-dock-item.unread .chat-dock-item-time { color: var(--moss); font-weight: 500; }
 .chat-dock-item-preview { display: block; font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 .chat-dock-empty { padding: 20px 10px; font-size: 13px; color: var(--ink-3); text-align: center; }
 .chat-dock-see-all { display: block; text-align: center; padding: 10px; font-size: 12px; color: var(--moss); font-weight: 600; border-top: var(--hairline); transition: background .15s; }
@@ -724,7 +790,7 @@
 .chat-popup-head-name { flex: 1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-popup-head-actions { display: flex; gap: 2px; flex: none; }
 .chat-popup-icon-btn {
-  display: flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
   border-radius: 6px; color: rgba(255,255,255,.85); transition: background .15s, color .15s;
 }
 .chat-popup-icon-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
@@ -848,7 +914,10 @@
 }
 .modal-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; gap: 12px; }
 .modal-head h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 20px; color: var(--ink); }
-.modal-close { font-size: 18px; color: var(--ink-3); line-height: 1; padding: 4px; border-radius: 50%; transition: color .15s, background .15s; }
+.modal-close {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 36px; height: 36px; margin: -6px -8px 0 0;
+  font-size: 18px; color: var(--ink-3); line-height: 1; border-radius: 50%; transition: color .15s, background .15s;
+}
 .modal-close:hover { color: var(--ink); background: var(--paper-deep); }
 .modal-sub { font-size: 13px; color: var(--ink-3); margin-bottom: 20px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
@@ -888,6 +957,7 @@
 .portal-mobile-toggle { display: none; }
 @media (max-width: 960px) {
   .portal-shell { flex-direction: column; }
+  .portal-main { margin-left: 0; } /* the sidebar becomes an off-canvas drawer here */
   .portal-sidebar {
     position: fixed; left: 0; top: 0; z-index: 50; transform: translateX(-100%);
     transition: transform .3s var(--ease-out); box-shadow: 0 0 0 100vmax rgba(0,0,0,0);
@@ -910,18 +980,33 @@
   .profile-grid { grid-template-columns: 1fr; }
   .pf-grid, .conn-grid { grid-template-columns: 1fr; }
   .filter-field { min-width: 0; flex: 1 1 140px; }
-  .portal-auth-shell { grid-template-columns: 1fr; min-height: 0; }
-  .portal-auth-intro { padding: 40px 24px; }
-  .portal-auth-points { display: none; }
-  .portal-hero-split { grid-template-columns: 1fr; min-height: 0; }
-  .portal-hero-copy { padding: 48px 24px 32px; max-width: none; }
-  .portal-hero-panel { padding: 40px 24px 56px; }
+  .portal-guest-header { padding: 20px 24px; }
+  .portal-entry { grid-template-columns: 1fr; grid-template-areas: "intro" "visual"; min-height: 0; }
+  .portal-entry-intro { align-self: auto; padding: 40px 24px 28px; max-width: none; }
+  .portal-entry-visual { margin: 0 16px 24px; padding: 32px 20px; }
 }
 @media (max-width: 640px) {
+  .portal-guest-header { padding: 16px 24px; }
   .portal-auth-card { padding: 30px 24px; }
+  .portal-entry-visual { margin: 0 10px 16px; padding: 14px 10px; border-radius: var(--radius-lg); }
+  .portal-auth-card.portal-entry-card { padding: 22px 18px 20px; border-radius: var(--radius-lg); }
   .field-row { grid-template-columns: 1fr; }
   .pf-detail-actions { margin-left: 0; width: 100%; }
   .pf-detail-actions .btn-primary, .pf-detail-actions .btn-outline { flex: 1; justify-content: center; }
   .toast-stack { left: 16px; right: 16px; translate: 0 0; align-items: stretch; }
   .toast { white-space: normal; }
+}
+/* globals.css makes every .btn-primary/.btn-outline full width at ≤480px,
+   which suits the public site's big CTAs but not the portal's small inline
+   buttons (Message on a card, Accept/Decline, modal actions). Opt in with
+   .btn-block where full width is actually wanted. */
+@media (max-width: 480px) {
+  .portal-shell .btn-primary, .portal-shell .btn-outline,
+  .chat-dock .btn-primary, .chat-dock .btn-outline { width: auto; }
+  .portal-shell .btn-block { width: 100%; justify-content: center; }
+}
+/* Bigger tap targets for icon buttons on touch screens. */
+@media (pointer: coarse) {
+  .btn-icon, .modal-close { width: 40px; height: 40px; }
+  .chat-popup-send, .chat-attach-btn { width: 40px; height: 40px; }
 }

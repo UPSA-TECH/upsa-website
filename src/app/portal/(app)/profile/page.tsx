@@ -190,7 +190,7 @@ export default function ProfilePage() {
                   {photoBusy ? 'Working…' : currentUser.hasAvatar ? 'Replace photo' : 'Upload photo'}
                 </button>
                 {currentUser.hasAvatar && (
-                  <button type="button" className="btn-ghost" onClick={handlePhotoRemove} disabled={photoBusy}>Remove photo</button>
+                  <button type="button" className="btn-ghost danger" onClick={handlePhotoRemove} disabled={photoBusy}>Remove photo</button>
                 )}
               </div>
               <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handlePhotoPick} />
@@ -331,8 +331,8 @@ export default function ProfilePage() {
                       <div className="sub">{edu.startYear ?? ''}{edu.startYear || edu.endYear ? ' - ' : ''}{edu.currentlyStudying ? 'Present' : edu.endYear ?? ''}</div>
                     </div>
                     <div className="entry-row-actions">
-                      <button type="button" className="btn-ghost btn-sm" aria-label={`Edit ${edu.school}`} onClick={() => setEditingEducation(edu)}><Pencil size={13} aria-hidden="true" /></button>
-                      <button type="button" className="btn-ghost btn-sm" aria-label={`Delete ${edu.school}`} onClick={() => handleDeleteEducation(edu.id)}><Trash2 size={13} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon" aria-label={`Edit ${edu.school}`} onClick={() => setEditingEducation(edu)}><Pencil size={15} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon danger" aria-label={`Delete ${edu.school}`} onClick={() => handleDeleteEducation(edu.id)}><Trash2 size={15} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}
@@ -358,8 +358,8 @@ export default function ProfilePage() {
                       {exp.description && <p style={{ marginTop: 6, fontSize: 13 }}>{exp.description}</p>}
                     </div>
                     <div className="entry-row-actions">
-                      <button type="button" className="btn-ghost btn-sm" aria-label={`Edit ${exp.jobTitle} at ${exp.company}`} onClick={() => setEditingExperience(exp)}><Pencil size={13} aria-hidden="true" /></button>
-                      <button type="button" className="btn-ghost btn-sm" aria-label={`Delete ${exp.jobTitle} at ${exp.company}`} onClick={() => handleDeleteExperience(exp.id)}><Trash2 size={13} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon" aria-label={`Edit ${exp.jobTitle} at ${exp.company}`} onClick={() => setEditingExperience(exp)}><Pencil size={15} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon danger" aria-label={`Delete ${exp.jobTitle} at ${exp.company}`} onClick={() => handleDeleteExperience(exp.id)}><Trash2 size={15} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}
@@ -385,8 +385,8 @@ export default function ProfilePage() {
                       {cert.credentialUrl && <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: 'var(--moss)' }}>View credential &rarr;</a>}
                     </div>
                     <div className="entry-row-actions">
-                      <button type="button" className="btn-ghost btn-sm" aria-label={`Edit ${cert.name}`} onClick={() => setEditingCertification(cert)}><Pencil size={13} aria-hidden="true" /></button>
-                      <button type="button" className="btn-ghost btn-sm" aria-label={`Delete ${cert.name}`} onClick={() => handleDeleteCertification(cert.id)}><Trash2 size={13} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon" aria-label={`Edit ${cert.name}`} onClick={() => setEditingCertification(cert)}><Pencil size={15} aria-hidden="true" /></button>
+                      <button type="button" className="btn-icon danger" aria-label={`Delete ${cert.name}`} onClick={() => handleDeleteCertification(cert.id)}><Trash2 size={15} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}

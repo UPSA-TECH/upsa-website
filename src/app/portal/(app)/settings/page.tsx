@@ -144,7 +144,7 @@ export default function SettingsPage() {
           Permanently removes your profile, education, experience, certifications, connections, requests, messages, resumes and
           photo from our systems, and deletes your sign-in account. There is no undo.
         </p>
-        <button className="btn-outline btn-sm" onClick={handleDeleteAccount} disabled={deleting} style={{ borderColor: '#B23B3B', color: '#B23B3B' }}>
+        <button className="btn-outline btn-sm btn-danger" onClick={handleDeleteAccount} disabled={deleting}>
           {deleting ? 'Deleting…' : 'Delete account permanently'}
         </button>
       </div>

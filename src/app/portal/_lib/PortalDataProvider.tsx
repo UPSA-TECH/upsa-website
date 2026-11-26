@@ -236,6 +236,7 @@ function toRequest(r: ApiRequest): ConnectionRequest {
     message: r.message,
     status: r.status,
     createdAt: timeAgo(r.createdAt),
+    createdAtIso: r.createdAt,
   };
 }
 
@@ -264,6 +265,7 @@ function toChatMessage(m: ApiMessage): ChatMessage {
     senderId: String(m.senderId),
     text: m.text,
     time: timeAgo(m.createdAt),
+    createdAtIso: m.createdAt,
     attachment: m.attachment,
     resumeId: m.resumeId !== null ? String(m.resumeId) : null,
     resumeFileName: m.resumeFileName,

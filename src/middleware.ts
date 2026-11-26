@@ -10,7 +10,8 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isPortalRoute(req) && !isPublicPortalRoute(req)) {
-    await auth.protect({ unauthenticatedUrl: new URL('/portal/sign-in', req.url).toString() });
+    // /portal is the combined landing + sign-in page.
+    await auth.protect({ unauthenticatedUrl: new URL('/portal', req.url).toString() });
   }
 });
 

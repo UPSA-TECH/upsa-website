@@ -3,12 +3,14 @@
 import { MessageSquareOff } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { useChatWidget } from '../../_lib/ChatWidgetProvider';
+import { byLatestMessage, shortTime, useNow } from '../../_lib/time';
 import Avatar from '../../_components/Avatar';
 
 export default function MessagesIndexPage() {
   const { state, currentUserId, isConnectionUnread } = usePortalData();
   const { openChat } = useChatWidget();
-  const connections = state.connections.filter(c => c.memberIds.includes(currentUserId));
+  const now = useNow();
+  const connections = state.connections.filter(c => c.memberIds.includes(currentUserId)).sort(byLatestMessage);
 
   return (
     <>
@@ -33,10 +35,13 @@ export default function MessagesIndexPage() {
             return (
               <button className="thread-item" key={c.id} onClick={() => openChat(c.id)}>
                 <Avatar name={other.name} initials={other.initials} color={other.avatarColor} imageUrl={other.avatarUrl} size="sm" />
-                <div>
+                <div className="thread-item-body">
                   <div className="thread-item-name">
                     {other.name}
                     {unread && <span className="thread-item-unread-dot" aria-label="Unread" />}
+                    {last && (
+                      <time className="thread-item-time" dateTime={last.createdAtIso}>{shortTime(last.createdAtIso, now)}</time>
+                    )}
                   </div>
                   <div className="thread-item-preview">{last ? last.text : 'Say hello'}</div>
                 </div>

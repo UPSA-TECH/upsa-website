@@ -5,13 +5,15 @@ import Link from 'next/link';
 import { MessageSquare, ChevronUp, ChevronDown } from 'lucide-react';
 import { usePortalData } from '../_lib/PortalDataProvider';
 import { useChatWidget } from '../_lib/ChatWidgetProvider';
+import { byLatestMessage, shortTime, useNow } from '../_lib/time';
 import ChatPopup from './ChatPopup';
 
 export default function ChatDock() {
   const { state, currentUserId, isConnectionUnread, unreadMessageCount } = usePortalData();
   const { openChats, minimized, openChat } = useChatWidget();
+  const now = useNow();
 
-  const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId));
+  const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId)).sort(byLatestMessage);
   const [barOpen, setBarOpen] = useState(false);
 
   return (
@@ -38,24 +40,32 @@ export default function ChatDock() {
                 const otherId = c.memberIds.find(id => id !== currentUserId)!;
                 const other = state.members[otherId];
                 if (!other) return null;
+                const unread = isConnectionUnread(c.id);
                 return (
                   <button
                     key={c.id}
-                    className="chat-dock-item"
+                    className={`chat-dock-item${unread ? ' unread' : ''}`}
                     // openChat already un-minimizes; toggling here as well
                     // flipped a minimized chat straight back to minimized.
                     onClick={() => openChat(c.id)}
                   >
-                    <span className="chat-dock-item-name">
-                      {other.name}
-                      {isConnectionUnread(c.id) && <span className="thread-item-unread-dot" aria-label="Unread" />}
+                    <span className="chat-dock-item-row">
+                      <span className="chat-dock-item-name">
+                        {other.name}
+                        {unread && <span className="thread-item-unread-dot" aria-label="Unread" />}
+                      </span>
+                      {c.lastMessage && (
+                        <time className="chat-dock-item-time" dateTime={c.lastMessage.createdAtIso}>
+                          {shortTime(c.lastMessage.createdAtIso, now)}
+                        </time>
+                      )}
                     </span>
                     <span className="chat-dock-item-preview">{c.lastMessage ? c.lastMessage.text : 'Say hello'}</span>
                   </button>
                 );
               })
             )}
-            <Link href="/portal/messages" className="chat-dock-see-all">See all conversations</Link>
+            {myConnections.length > 0 && <Link href="/portal/messages" className="chat-dock-see-all">See all conversations</Link>}
           </div>
         )}
       </div>

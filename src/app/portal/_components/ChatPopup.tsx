@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { SendHorizontal, Paperclip, FileText, Download, Minus, X, Hand, MessageCircleOff } from 'lucide-react';
 import { OPEN_THREAD_INTERVAL_MS, usePortalData } from '../_lib/PortalDataProvider';
 import { useChatWidget } from '../_lib/ChatWidgetProvider';
 import { ApiError } from '../_lib/api';
+import { dayLabel, fullTime, messageTime, sameDay, useNow } from '../_lib/time';
 import Avatar from './Avatar';
 import { useToast } from './Toast';
 
@@ -21,6 +22,8 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
   const scrollRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const resumeInputRef = useRef<HTMLInputElement>(null);
+  // Only the day separators are relative ("Today"), so a slow tick is plenty.
+  const now = useNow(5 * 60_000);
 
   const connection = state.connections.find(c => c.id === connectionId);
   const threadMessages = state.messages.filter(m => m.connectionId === connectionId);
@@ -145,8 +148,14 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
             {threadMessages.length === 0 ? (
               <div className="chat-empty"><Hand size={16} /> Say hello to {other.name.split(' ')[0]}</div>
             ) : (
-              threadMessages.map(m => (
-                <div className={`chat-bubble ${m.senderId === currentUserId ? 'mine' : 'theirs'}${m.attachment === 'resume' ? ' has-attachment' : ''}`} key={m.id}>
+              threadMessages.map((m, i) => (
+                <Fragment key={m.id}>
+                {(i === 0 || !sameDay(threadMessages[i - 1].createdAtIso, m.createdAtIso)) && (
+                  <div className="chat-day-sep" role="separator">
+                    <span>{dayLabel(m.createdAtIso, now)}</span>
+                  </div>
+                )}
+                <div className={`chat-bubble ${m.senderId === currentUserId ? 'mine' : 'theirs'}${m.attachment === 'resume' ? ' has-attachment' : ''}`}>
                   {m.attachment === 'resume' ? (
                     m.resumeId ? (
                       <button
@@ -172,8 +181,11 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
                   ) : (
                     m.text
                   )}
-                  <span className="time">{m.time}</span>
+                  <time className="time" dateTime={m.createdAtIso} title={fullTime(m.createdAtIso)}>
+                    {messageTime(m.createdAtIso)}
+                  </time>
                 </div>
+                </Fragment>
               ))
             )}
           </div>
