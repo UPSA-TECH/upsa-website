@@ -1,4 +1,4 @@
-import { BadgeCheck } from 'lucide-react';
+import { BriefcaseBusiness } from 'lucide-react';
 
 export default function Avatar({
   name,
@@ -6,14 +6,17 @@ export default function Avatar({
   color,
   size = 'md',
   imageUrl,
-  verified = false,
+  professional = false,
 }: {
   name: string;
   initials: string;
   color: string;
   size?: 'sm' | 'md' | 'lg';
   imageUrl?: string;
-  verified?: boolean;
+  // Listing as a mentor/professional is self-serve and nobody checks the
+  // employer, so this badge only says "listed as a professional". It must
+  // never look like a verification mark (no check icon, no "verified").
+  professional?: boolean;
 }) {
   const inner = imageUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
@@ -24,12 +27,12 @@ export default function Avatar({
     </span>
   );
 
-  if (!verified) return inner;
+  if (!professional) return inner;
 
   return (
     <span className={`avatar-wrap avatar-wrap-${size}`}>
       {inner}
-      <BadgeCheck className="avatar-verified-badge" aria-label="Verified mentor/professional" />
+      <BriefcaseBusiness className="avatar-pro-badge" role="img" aria-label="Mentor/professional" />
     </span>
   );
 }

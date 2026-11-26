@@ -44,7 +44,11 @@ export default async function HomePage() {
 
   function emphasizedText(text = '', emphasis = '') {
     if (!emphasis || !text.includes(emphasis)) return text;
-    const [before, after] = text.split(emphasis);
+    // Split on the first occurrence only - a plain split() would silently
+    // drop everything after a second occurrence of the phrase.
+    const index = text.indexOf(emphasis);
+    const before = text.slice(0, index);
+    const after = text.slice(index + emphasis.length);
     return <>{before}<em>{emphasis}</em>{after}</>;
   }
 

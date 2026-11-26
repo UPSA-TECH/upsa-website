@@ -284,3 +284,8 @@ if not DEBUG and not R2_ENABLED:
     warnings.warn("R2 storage is not configured: uploaded resumes and photos will not survive a redeploy.")
 
 CLERK_AUTHORIZED_PARTIES = _env_list("CLERK_AUTHORIZED_PARTIES", FRONTEND_ORIGINS)
+# Off for now: Clerk leaves azp out of a token when the browser sent no Origin
+# header (some privacy setups), so requiring it could lock real members out.
+# Missing-azp tokens are logged instead (users/clerk_auth.py); once the logs
+# show nobody legitimate arrives without one, set this to true.
+CLERK_REQUIRE_AZP = os.environ.get("CLERK_REQUIRE_AZP", "").lower() in ("1", "true", "yes")

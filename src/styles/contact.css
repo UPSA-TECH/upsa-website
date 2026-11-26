@@ -142,6 +142,8 @@
   align-self: flex-start;
   margin-top: 4px;
 }
+.cf-submit:disabled { opacity: .6; cursor: progress; }
+.cf-error { margin: 0; font-size: 14px; color: #a23b2a; }
 
 /* Success state */
 .contact-success {

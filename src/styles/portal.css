@@ -401,12 +401,12 @@
 .avatar-photo { object-fit: cover; }
 
 .avatar-wrap { position: relative; display: inline-flex; flex: none; }
-.avatar-verified-badge {
+.avatar-pro-badge {
   position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px;
-  background: #fff; color: var(--moss); border-radius: 50%; padding: 1.5px;
+  background: #fff; color: var(--moss); border-radius: 50%; padding: 3px;
   box-shadow: 0 0 0 2px #fff, var(--shadow-xs);
 }
-.avatar-wrap-lg .avatar-verified-badge { width: 24px; height: 24px; right: -3px; bottom: -3px; }
+.avatar-wrap-lg .avatar-pro-badge { width: 24px; height: 24px; right: -3px; bottom: -3px; }
 
 .avatar-edit-wrap { position: relative; display: inline-flex; flex: none; }
 .avatar-edit-btn {
@@ -836,7 +836,8 @@
 /* ---------- Modal ---------- */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(14,44,27,.45); backdrop-filter: blur(3px);
-  display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  /* Above the chat dock (150) and full-screen mobile chat (160), below toasts (200). */
+  display: flex; align-items: center; justify-content: center; z-index: 170; padding: 20px;
   animation: fadeIn .2s var(--ease-out);
 }
 .modal-panel {

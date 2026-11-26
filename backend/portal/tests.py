@@ -194,6 +194,7 @@ class PortalApiTests(APITestCase):
                 self.assertEqual(self.client.post(reverse("request-decline", args=[incoming.id])).status_code, 200)
 
     def test_reactivating_restores_the_ability_to_reach_out(self):
+        _discoverable(self.mentor)
         self.complete_profile(self.student)
         self.as_(self.student)
         self.client.patch(reverse("my-profile"), {"hidden": True}, format="json")
@@ -203,6 +204,85 @@ class PortalApiTests(APITestCase):
         self.client.patch(reverse("my-profile"), {"hidden": False}, format="json")
         allowed = self.client.post(reverse("requests"), {"toId": self.mentor.id, "requestType": "connect", "message": "hi"}, format="json")
         self.assertEqual(allowed.status_code, 201)
+
+    def test_requests_only_go_to_members_you_could_find_in_discover(self):
+        def send(to_id):
+            return self.client.post(reverse("requests"), {"toId": to_id, "requestType": "connect", "message": "hi"}, format="json")
+
+        unfinished = User.objects.create(username="clerk:unfinished")
+        Profile.objects.create(user=unfinished, name="Half Done")
+        no_profile = User.objects.create(username="clerk:staff")
+        hidden = _discoverable(User.objects.create(username="clerk:hidden"), hidden=True)
+        suspended = _discoverable(User.objects.create(username="clerk:suspended"), deactivated=True)
+        inactive = _discoverable(User.objects.create(username="clerk:inactive"))
+        User.objects.filter(pk=inactive.pk).update(is_active=False)
+
+        self.as_(self.student)
+        for target_id in (999999, unfinished.id, no_profile.id, hidden.id, suspended.id, inactive.id):
+            with self.subTest(target_id=target_id):
+                self.assertEqual(send(target_id).status_code, 400)
+        self.assertFalse(ConnectionRequest.objects.exists())
+
+        _discoverable(self.mentor)
+        self.assertEqual(send(self.mentor.id).status_code, 201)
+
+    def test_referral_requests_need_the_member_to_be_open_to_referrals(self):
+        _discoverable(self.mentor, referrals_available=False)
+        self.as_(self.student)
+        body = {"toId": self.mentor.id, "requestType": "referral", "message": "could you refer me?"}
+        self.assertEqual(self.client.post(reverse("requests"), body, format="json").status_code, 400)
+
+        Profile.objects.filter(user=self.mentor).update(referrals_available=True)
+        self.assertEqual(self.client.post(reverse("requests"), body, format="json").status_code, 201)
+
+    def test_cannot_share_a_resume_on_a_cancelled_connection(self):
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect", status="accepted")
+        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor, status="cancelled")
+        self.as_(self.student)
+        resume = _fake_file(b"%PDF-1.4 fake resume", "resume.pdf", "application/pdf")
+        res = self.client.post(reverse("connection-share-resume", args=[connection.id]), {"file": resume}, format="multipart")
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(Resume.objects.exists())
+        self.assertFalse(Message.objects.exists())
+
+    def test_skills_must_be_a_short_list_of_short_strings(self):
+        self.as_(self.student)
+        for bad in ({"a": 1}, "python", [["nested"]], [{"x": 1}], ["x" * 51], [f"s{i}" for i in range(31)]):
+            with self.subTest(skills=bad):
+                res = self.client.patch(reverse("my-profile"), {"skills": bad}, format="json")
+                self.assertEqual(res.status_code, 400)
+        res = self.client.patch(reverse("my-profile"), {"skills": ["React", "Finance", "React"]}, format="json")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["skills"], ["React", "Finance"])
+
+    def test_free_text_fields_are_capped(self):
+        _discoverable(self.mentor)
+        self.as_(self.student)
+        self.assertEqual(self.client.patch(reverse("my-profile"), {"bio": "x" * 2001}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch(reverse("my-profile"), {"bio": "x" * 2000}, format="json").status_code, 200)
+
+        too_long = {"toId": self.mentor.id, "requestType": "connect", "message": "x" * 601}
+        self.assertEqual(self.client.post(reverse("requests"), too_long, format="json").status_code, 400)
+
+        req = ConnectionRequest.objects.create(from_user=self.student, to_user=self.mentor, request_type="connect", status="accepted")
+        connection = Connection.objects.create(request=req, member_a=self.student, member_b=self.mentor)
+        url = reverse("connection-messages", args=[connection.id])
+        self.assertEqual(self.client.post(url, {"text": "x" * 4001}, format="json").status_code, 400)
+        self.assertEqual(self.client.post(url, {"text": "x" * 4000}, format="json").status_code, 201)
+
+        res = self.client.post(reverse("experience-list"), {"jobTitle": "SWE", "company": "Acme", "description": "x" * 2001}, format="json")
+        self.assertEqual(res.status_code, 400)
+
+    def test_non_text_report_and_bug_report_fields_are_a_400_not_a_crash(self):
+        self.as_(self.student)
+        for payload in ({"reason": 5}, {"reason": ["a"]}, {"reason": {"x": 1}}):
+            with self.subTest(payload=payload):
+                res = self.client.post(reverse("member-report", args=[self.mentor.id]), payload, format="json")
+                self.assertEqual(res.status_code, 400)
+        for payload in ({"description": 5}, {"description": "broken", "pageUrl": ["x"]}):
+            with self.subTest(payload=payload):
+                self.assertEqual(self.client.post(reverse("bug-report-submit"), payload, format="json").status_code, 400)
+        self.assertEqual(self.client.post(reverse("bug-report-submit"), {"description": "broken"}, format="json").status_code, 201)
 
     # --- reporting -----------------------------------------------------
 
@@ -421,6 +501,7 @@ class PortalApiTests(APITestCase):
     # --- requests / connections / messages ----------------------------------
 
     def test_full_request_to_message_flow(self):
+        _discoverable(self.mentor)
         self.as_(self.student)
         res = self.client.post(
             reverse("requests"),
@@ -478,6 +559,7 @@ class PortalApiTests(APITestCase):
         # Simulates the second half of a double-accept race: by the time this
         # runs, the request is no longer "pending", which is exactly the
         # state a concurrent accept would leave behind.
+        _discoverable(self.mentor)
         self.as_(self.student)
         res = self.client.post(reverse("requests"), {"toId": self.mentor.id, "requestType": "connect", "message": "hi"}, format="json")
         request_id = res.data["id"]
@@ -638,6 +720,14 @@ class ExtendedProfileTests(APITestCase):
         self.assertEqual(len(patched.data["education"]), 1)
 
 
+def _discoverable(user, **fields):
+    """Marks a user as a finished, visible member - the only kind of person a
+    connection request can be sent to - without going through the full
+    photo-and-bio onboarding flow (complete_profile does that when it matters)."""
+    Profile.objects.update_or_create(user=user, defaults={"name": f"Member {user.id}", "onboarding_complete": True, **fields})
+    return user
+
+
 def _fake_file(content, name, content_type):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -762,7 +852,7 @@ class RateLimitTests(APITestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_sending_requests_is_limited_but_reading_them_is_not(self):
-        targets = [User.objects.create(username=f"clerk:target{i}") for i in range(3)]
+        targets = [_discoverable(User.objects.create(username=f"clerk:target{i}")) for i in range(3)]
 
         def send(target):
             return self.client.post(
@@ -788,7 +878,7 @@ class RateLimitTests(APITestCase):
             self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_one_users_limit_does_not_affect_another(self):
-        first, second = User.objects.create(username="clerk:t1"), User.objects.create(username="clerk:t2")
+        first, second = (_discoverable(User.objects.create(username=f"clerk:{key}")) for key in ("t1", "t2"))
         body = {"toId": first.id, "requestType": "connect", "message": "hi"}
         self.client.post(reverse("requests"), body, format="json")
         self.client.post(reverse("requests"), {**body, "toId": second.id}, format="json")
@@ -814,7 +904,7 @@ class NotificationTests(APITestCase):
     def member(self, key, name):
         user = User.objects.create(username=f"clerk:{key}")
         ClerkIdentity.objects.create(clerk_id=key, user=user)
-        Profile.objects.create(user=user, name=name)
+        Profile.objects.create(user=user, name=name, onboarding_complete=True)
         return user
 
     def send_request(self, message="secret details"):
@@ -935,6 +1025,7 @@ class ScalingTests(APITestCase):
         empty = self.client.get(reverse("sync")).data["version"]
         self.assertEqual(empty, "0")
 
+        _discoverable(self.me)
         self.client.force_authenticate(user=self.friend)
         self.client.post(reverse("requests"), {"toId": self.me.id, "requestType": "connect", "message": "hi"}, format="json")
         self.client.force_authenticate(user=self.me)
@@ -1020,6 +1111,38 @@ class ScalingTests(APITestCase):
     def test_absurdly_large_dimensions_are_refused(self):
         res = self.client.post(reverse("upload-avatar"), {"file": self.image_upload((14000, 11000), mode="L")}, format="multipart")
         self.assertEqual(res.status_code, 400)
+
+    def test_a_photo_just_over_the_pixel_cap_is_refused(self):
+        res = self.client.post(reverse("upload-avatar"), {"file": self.image_upload((8000, 6300), mode="L")}, format="multipart")
+        self.assertEqual(res.status_code, 400)
+
+    def test_formats_outside_jpeg_png_webp_are_refused_whatever_the_browser_claims(self):
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        for fmt in ("TIFF", "BMP", "GIF"):
+            with self.subTest(fmt=fmt):
+                buffer = io.BytesIO()
+                Image.new("RGB", (64, 64), "green").save(buffer, fmt)
+                upload = SimpleUploadedFile("photo.png", buffer.getvalue(), content_type="image/png")
+                res = self.client.post(reverse("upload-avatar"), {"file": upload}, format="multipart")
+                self.assertEqual(res.status_code, 400)
+
+    def test_a_big_jpeg_still_becomes_a_small_avatar(self):
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (4000, 3000), "green").save(buffer, "JPEG")
+        upload = SimpleUploadedFile("photo.jpg", buffer.getvalue(), content_type="image/jpeg")
+        res = self.client.post(reverse("upload-avatar"), {"file": upload}, format="multipart")
+        self.assertEqual(res.status_code, 201)
+        with Profile.objects.get(user=self.me).avatar.open("rb") as f:
+            self.assertLessEqual(max(Image.open(f).size), 256)
 
     def test_a_large_but_real_camera_photo_is_accepted(self):
         # A 48MP phone photo - well under the decompression-bomb threshold,

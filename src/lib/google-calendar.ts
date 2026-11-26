@@ -90,7 +90,9 @@ async function fetchEvents(params: Record<string, string>): Promise<unknown[]> {
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
   try {
-    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
+    // revalidate: 0 here used to override the pages' own 5-minute cache, so
+    // every homepage view hit the Google API twice.
+    const res = await fetch(url.toString(), { next: { revalidate: 300 } });
     if (!res.ok) {
       const body = await res.text();
       console.error('[google-calendar] API error', res.status, body);

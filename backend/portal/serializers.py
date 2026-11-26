@@ -18,6 +18,16 @@ ALLOWED_RESUME_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
+# Free-text caps. The database columns are unbounded TextFields, so without
+# these a single member could store megabytes in a bio or message that then
+# gets served to everyone who loads their profile or the conversation.
+MAX_BIO_LENGTH = 2000
+MAX_DESCRIPTION_LENGTH = 2000
+MAX_REQUEST_MESSAGE_LENGTH = 600  # matches the request modal's own limit
+MAX_MESSAGE_LENGTH = 4000
+MAX_SKILLS = 30
+MAX_SKILL_LENGTH = 50
+
 MAX_AVATAR_SIZE = 20 * 1024 * 1024
 ALLOWED_AVATAR_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -51,6 +61,7 @@ class WorkExperienceSerializer(serializers.ModelSerializer):
     class Meta:
         model = WorkExperience
         fields = ["id", "jobTitle", "company", "employmentType", "startDate", "endDate", "currentlyWorking", "description"]
+        extra_kwargs = {"description": {"max_length": MAX_DESCRIPTION_LENGTH}}
 
 
 class CertificationSerializer(serializers.ModelSerializer):
@@ -66,6 +77,15 @@ class CertificationSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source="user_id", read_only=True)
+    bio = serializers.CharField(max_length=MAX_BIO_LENGTH, required=False, allow_blank=True)
+    # The column is free-form JSON, so without this anything (an object,
+    # nested lists, a huge blob) could be saved and then served to everyone
+    # in Discover - where the frontend expects a short list of strings.
+    skills = serializers.ListField(
+        child=serializers.CharField(max_length=MAX_SKILL_LENGTH),
+        max_length=MAX_SKILLS,
+        required=False,
+    )
     referralsAvailable = serializers.BooleanField(source="referrals_available", required=False)
     # Self-serve: a member can set this to True themselves, but only once
     # company + role are filled in (checked in update() below, since it needs
@@ -120,6 +140,10 @@ class ProfileSerializer(serializers.ModelSerializer):
             "certifications",
         ]
 
+    def validate_skills(self, skills):
+        # Skills render as React list keys, so drop repeats (first one wins).
+        return list(dict.fromkeys(skill for skill in skills if skill))
+
     def get_termsAccepted(self, obj):
         return obj.terms_accepted_at is not None
 
@@ -168,6 +192,7 @@ class ConnectionRequestSerializer(serializers.ModelSerializer):
         model = ConnectionRequest
         fields = ["id", "fromId", "toId", "requestType", "message", "status", "createdAt"]
         read_only_fields = ["id", "status"]
+        extra_kwargs = {"message": {"max_length": MAX_REQUEST_MESSAGE_LENGTH}}
 
 
 class ConnectionSerializer(serializers.ModelSerializer):
@@ -199,6 +224,7 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = ["id", "connectionId", "senderId", "text", "createdAt", "attachment", "resumeId", "resumeFileName", "resumeSizeLabel"]
+        extra_kwargs = {"text": {"max_length": MAX_MESSAGE_LENGTH}}
 
     def get_resumeId(self, obj):
         return obj.resume_id

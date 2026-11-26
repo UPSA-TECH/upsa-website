@@ -20,7 +20,7 @@ export default function SendRequestModal({
   const toast = useToast();
   const [sending, setSending] = useState(false);
 
-  // Everyone verified can be sent a general "connect" request; referral is a
+  // Anyone in Discover can be sent a general "connect" request; referral is a
   // bigger, more specific ask, so it's only offered when the person opted in.
   const availableTypes: RequestType[] = ['connect', ...(professional.referralsAvailable ? (['referral'] as const) : [])];
 

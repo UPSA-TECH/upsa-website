@@ -47,7 +47,7 @@ export type Member = {
   location?: string;
   bio: string;
   skills: string[];
-  // A verified professional is discoverable by default; this is the one
+  // A listed professional is discoverable by default; this is the one
   // remaining opt-in, for whether "referral" is offered as a request reason.
   referralsAvailable: boolean;
   isProfessional: boolean;

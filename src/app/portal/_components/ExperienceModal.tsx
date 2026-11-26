@@ -96,7 +96,7 @@ export default function ExperienceModal({ existing, onClose }: { existing: WorkE
           </label>
           <div className="field">
             <label htmlFor="exp-desc">Description <span className="hint" style={{ fontWeight: 400 }}>(optional)</span></label>
-            <textarea id="exp-desc" value={description} onChange={e => setDescription(e.target.value)} rows={3} />
+            <textarea id="exp-desc" value={description} onChange={e => setDescription(e.target.value)} rows={3} maxLength={2000} />
           </div>
 
           <div className="modal-actions">

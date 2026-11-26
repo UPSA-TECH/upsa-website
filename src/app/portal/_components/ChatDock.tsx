@@ -9,7 +9,7 @@ import ChatPopup from './ChatPopup';
 
 export default function ChatDock() {
   const { state, currentUserId, isConnectionUnread, unreadMessageCount } = usePortalData();
-  const { openChats, minimized, openChat, toggleMinimize } = useChatWidget();
+  const { openChats, minimized, openChat } = useChatWidget();
 
   const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId));
   const [barOpen, setBarOpen] = useState(false);
@@ -42,10 +42,9 @@ export default function ChatDock() {
                   <button
                     key={c.id}
                     className="chat-dock-item"
-                    onClick={() => {
-                      openChat(c.id);
-                      if (minimized[c.id]) toggleMinimize(c.id);
-                    }}
+                    // openChat already un-minimizes; toggling here as well
+                    // flipped a minimized chat straight back to minimized.
+                    onClick={() => openChat(c.id)}
                   >
                     <span className="chat-dock-item-name">
                       {other.name}

@@ -151,6 +151,14 @@ function timeAgo(iso: string): string {
   return `${Math.round(diffYear)} year${Math.round(diffYear) === 1 ? '' : 's'} ago`;
 }
 
+// Education/experience/certification bodies. A cleared optional field (an
+// emptied date, or the end date once "currently working" is ticked) is
+// undefined here, and plain JSON.stringify drops undefined keys entirely - so
+// a PATCH would leave the old value saved. Sending null actually clears it.
+function entryBody(fields: object): string {
+  return JSON.stringify(fields, (_key, value) => (value === undefined ? null : value));
+}
+
 function toEducation(e: ApiEducation): Education {
   return {
     id: String(e.id),
@@ -831,14 +839,14 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
 
   const addEducation = useCallback(
     async (fields: Omit<Education, 'id'>) => {
-      const created = await call<ApiEducation>('/api/members/me/education/', { method: 'POST', body: JSON.stringify(fields) });
+      const created = await call<ApiEducation>('/api/members/me/education/', { method: 'POST', body: entryBody(fields) });
       patchMyList('education', currentUserId, list => [...list, toEducation(created)]);
     },
     [call, currentUserId]
   );
   const updateEducation = useCallback(
     async (id: string, fields: Partial<Omit<Education, 'id'>>) => {
-      const updated = await call<ApiEducation>(`/api/members/me/education/${id}/`, { method: 'PATCH', body: JSON.stringify(fields) });
+      const updated = await call<ApiEducation>(`/api/members/me/education/${id}/`, { method: 'PATCH', body: entryBody(fields) });
       patchMyList('education', currentUserId, list => list.map(e => (e.id === id ? toEducation(updated) : e)));
     },
     [call, currentUserId]
@@ -853,14 +861,14 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
 
   const addExperience = useCallback(
     async (fields: Omit<WorkExperience, 'id'>) => {
-      const created = await call<ApiWorkExperience>('/api/members/me/experience/', { method: 'POST', body: JSON.stringify(fields) });
+      const created = await call<ApiWorkExperience>('/api/members/me/experience/', { method: 'POST', body: entryBody(fields) });
       patchMyList('experience', currentUserId, list => [...list, toWorkExperience(created)]);
     },
     [call, currentUserId]
   );
   const updateExperience = useCallback(
     async (id: string, fields: Partial<Omit<WorkExperience, 'id'>>) => {
-      const updated = await call<ApiWorkExperience>(`/api/members/me/experience/${id}/`, { method: 'PATCH', body: JSON.stringify(fields) });
+      const updated = await call<ApiWorkExperience>(`/api/members/me/experience/${id}/`, { method: 'PATCH', body: entryBody(fields) });
       patchMyList('experience', currentUserId, list => list.map(e => (e.id === id ? toWorkExperience(updated) : e)));
     },
     [call, currentUserId]
@@ -875,14 +883,14 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
 
   const addCertification = useCallback(
     async (fields: Omit<Certification, 'id'>) => {
-      const created = await call<ApiCertification>('/api/members/me/certifications/', { method: 'POST', body: JSON.stringify(fields) });
+      const created = await call<ApiCertification>('/api/members/me/certifications/', { method: 'POST', body: entryBody(fields) });
       patchMyList('certifications', currentUserId, list => [...list, toCertification(created)]);
     },
     [call, currentUserId]
   );
   const updateCertification = useCallback(
     async (id: string, fields: Partial<Omit<Certification, 'id'>>) => {
-      const updated = await call<ApiCertification>(`/api/members/me/certifications/${id}/`, { method: 'PATCH', body: JSON.stringify(fields) });
+      const updated = await call<ApiCertification>(`/api/members/me/certifications/${id}/`, { method: 'PATCH', body: entryBody(fields) });
       patchMyList('certifications', currentUserId, list => list.map(c => (c.id === id ? toCertification(updated) : c)));
     },
     [call, currentUserId]

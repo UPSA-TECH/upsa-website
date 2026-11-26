@@ -147,7 +147,7 @@ export default function ProfessionalDetail({ id }: { id: string }) {
           color={professional.avatarColor}
           imageUrl={professional.avatarUrl}
           size="lg"
-          verified={professional.isProfessional}
+          professional={professional.isProfessional}
         />
         <div className="pf-detail-info">
           <div style={{ marginBottom: 8 }}><RoleTag isStudent={isStudentType} isProfessional={professional.isProfessional} /></div>

@@ -92,7 +92,7 @@ The upload must be a real image (it is decoded and checked), no more than 25 mil
 
 `GET /api/professionals/`: paginated, 20 per page, ordered by name. Response is `{count, next, previous, results: [profile, ...]}`; `next` is `null` on the last page.
 
-Lists only members who are **a verified professional and not deactivated** - that's the only gate. There's no separate visibility toggle; being verified is what makes someone discoverable.
+Lists every member who has **finished onboarding** (students and professionals alike) and isn't hidden, suspended or disabled. With no search or filter, people you're already connected to are left out, since they're on your Connections page. `isProfessional` is self-serve and isn't verified by anyone.
 
 | Query parameter | Effect |
 | --- | --- |

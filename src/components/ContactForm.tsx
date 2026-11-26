@@ -12,15 +12,29 @@ export default function ContactForm({
   successDescription: string;
 }) {
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    fetch('/__forms.html', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(new FormData(form) as unknown as Record<string, string>).toString(),
-    }).then(() => setSent(true)).catch(() => setSent(true));
+    setSending(true);
+    setFailed(false);
+    try {
+      const res = await fetch('/__forms.html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(new FormData(form) as unknown as Record<string, string>).toString(),
+      });
+      // fetch only rejects on a network failure - a 404/500 from Netlify
+      // Forms still resolves, so it has to be checked or it reads as "sent".
+      if (!res.ok) throw new Error(`Form submit failed: ${res.status}`);
+      setSent(true);
+    } catch {
+      setFailed(true);
+    } finally {
+      setSending(false);
+    }
   }
 
   if (sent) {
@@ -65,8 +79,13 @@ export default function ContactForm({
         <label htmlFor="cf-msg">Message</label>
         <textarea id="cf-msg" name="message" rows={6} placeholder="Your message..." required />
       </div>
-      <button type="submit" className="btn-primary cf-submit">
-        {submitLabel} &rarr;
+      {failed && (
+        <p className="cf-error" role="alert">
+          Your message didn&apos;t go through. Please try again in a moment.
+        </p>
+      )}
+      <button type="submit" className="btn-primary cf-submit" disabled={sending}>
+        {sending ? 'Sending…' : <>{submitLabel} &rarr;</>}
       </button>
     </form>
   );

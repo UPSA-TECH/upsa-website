@@ -4,8 +4,11 @@ Clerk handles sign-up/sign-in/sign-out entirely on the frontend. Django's only
 job is to check that a request carries a genuine Clerk session token and
 figure out which local user it belongs to - no passwords, no login views here.
 """
+import logging
+
 import jwt
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from jwt import PyJWKClient
 from rest_framework.authentication import BaseAuthentication
@@ -13,9 +16,23 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from .models import ClerkIdentity
 
+logger = logging.getLogger(__name__)
+
 _jwks_client = None
 
 CLOCK_SKEW_LEEWAY_SECONDS = 10
+MISSING_AZP_LOG_EVERY_SECONDS = 24 * 60 * 60
+
+
+def _log_missing_azp(clerk_user_id):
+    # The portal polls every 30 seconds, so logging every request would bury
+    # everything else - once per user per day is enough to see who's affected.
+    if cache.add(f"clerk-missing-azp:{clerk_user_id}", True, MISSING_AZP_LOG_EVERY_SECONDS):
+        logger.warning(
+            "Accepted a Clerk token with no azp claim for user %s. "
+            "If this never shows up for real members, CLERK_REQUIRE_AZP can be turned on.",
+            clerk_user_id,
+        )
 
 
 def _get_jwks_client():
@@ -60,11 +77,17 @@ class ClerkJWTAuthentication(BaseAuthentication):
             raise AuthenticationFailed(f"Invalid Clerk token: {exc}") from exc
 
         # "azp" is the site the token was issued to. Reject tokens minted for
-        # some other site; tokens without the claim are still accepted.
+        # some other site. Tokens without the claim are only rejected once
+        # CLERK_REQUIRE_AZP is on (see settings for why it starts off).
         authorized_party = claims.get("azp")
         allowed = settings.CLERK_AUTHORIZED_PARTIES
-        if authorized_party and allowed and authorized_party not in allowed:
-            raise AuthenticationFailed("Token was issued for a different site.")
+        if authorized_party:
+            if allowed and authorized_party not in allowed:
+                raise AuthenticationFailed("Token was issued for a different site.")
+        elif allowed:
+            if settings.CLERK_REQUIRE_AZP:
+                raise AuthenticationFailed("Token is missing the site it was issued for.")
+            _log_missing_azp(claims["sub"])
 
         user = self._get_or_create_user(claims["sub"])
         # Unticking "Active" on a user in the Django admin is the hard ban: a

@@ -158,7 +158,7 @@ export default function ProfilePage() {
           color={currentUser.avatarColor}
           imageUrl={currentUser.avatarUrl}
           size="lg"
-          verified={currentUser.isProfessional}
+          professional={currentUser.isProfessional}
         />
         <div>
           <div style={{ marginBottom: 8 }}><RoleTag isStudent={Boolean(currentUser.university && currentUser.major)} isProfessional={currentUser.isProfessional} /></div>
@@ -212,7 +212,7 @@ export default function ProfilePage() {
           </div>
           <div className="field">
             <label htmlFor="p-bio">About</label>
-            <textarea id="p-bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} />
+            <textarea id="p-bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} maxLength={2000} />
             <span className="hint">Required to stay visible in Discover.</span>
           </div>
           <div className="field">
@@ -331,8 +331,8 @@ export default function ProfilePage() {
                       <div className="sub">{edu.startYear ?? ''}{edu.startYear || edu.endYear ? ' - ' : ''}{edu.currentlyStudying ? 'Present' : edu.endYear ?? ''}</div>
                     </div>
                     <div className="entry-row-actions">
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => setEditingEducation(edu)}><Pencil size={13} /></button>
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => handleDeleteEducation(edu.id)}><Trash2 size={13} /></button>
+                      <button type="button" className="btn-ghost btn-sm" aria-label={`Edit ${edu.school}`} onClick={() => setEditingEducation(edu)}><Pencil size={13} aria-hidden="true" /></button>
+                      <button type="button" className="btn-ghost btn-sm" aria-label={`Delete ${edu.school}`} onClick={() => handleDeleteEducation(edu.id)}><Trash2 size={13} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}
@@ -358,8 +358,8 @@ export default function ProfilePage() {
                       {exp.description && <p style={{ marginTop: 6, fontSize: 13 }}>{exp.description}</p>}
                     </div>
                     <div className="entry-row-actions">
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => setEditingExperience(exp)}><Pencil size={13} /></button>
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => handleDeleteExperience(exp.id)}><Trash2 size={13} /></button>
+                      <button type="button" className="btn-ghost btn-sm" aria-label={`Edit ${exp.jobTitle} at ${exp.company}`} onClick={() => setEditingExperience(exp)}><Pencil size={13} aria-hidden="true" /></button>
+                      <button type="button" className="btn-ghost btn-sm" aria-label={`Delete ${exp.jobTitle} at ${exp.company}`} onClick={() => handleDeleteExperience(exp.id)}><Trash2 size={13} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}
@@ -385,8 +385,8 @@ export default function ProfilePage() {
                       {cert.credentialUrl && <a href={cert.credentialUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: 'var(--moss)' }}>View credential &rarr;</a>}
                     </div>
                     <div className="entry-row-actions">
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => setEditingCertification(cert)}><Pencil size={13} /></button>
-                      <button type="button" className="btn-ghost btn-sm" onClick={() => handleDeleteCertification(cert.id)}><Trash2 size={13} /></button>
+                      <button type="button" className="btn-ghost btn-sm" aria-label={`Edit ${cert.name}`} onClick={() => setEditingCertification(cert)}><Pencil size={13} aria-hidden="true" /></button>
+                      <button type="button" className="btn-ghost btn-sm" aria-label={`Delete ${cert.name}`} onClick={() => handleDeleteCertification(cert.id)}><Trash2 size={13} aria-hidden="true" /></button>
                     </div>
                   </div>
                 ))}

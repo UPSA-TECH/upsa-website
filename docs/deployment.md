@@ -59,6 +59,7 @@ Which host? For a launch that stays fast as membership grows (about 1,000 at fir
 | `DJANGO_SSL_REDIRECT` | optional | `true` by default. Set `false` only if the host already redirects http to https. |
 | `SENTRY_DSN` | optional | Error tracking. Off unless set - see "Error tracking" below. |
 | `CLERK_AUTHORIZED_PARTIES` | optional | Defaults to `FRONTEND_ORIGINS`. |
+| `CLERK_REQUIRE_AZP` | optional | `false` by default. When `true`, tokens that don't say which site they were issued for are rejected. Turn on only after the backend log has gone a few weeks without "Accepted a Clerk token with no azp claim" warnings from real members. |
 
 Do **not** set `DJANGO_DEBUG` on a server.
 

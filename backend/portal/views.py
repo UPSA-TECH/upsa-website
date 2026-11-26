@@ -72,6 +72,18 @@ def _ensure_can_interact(user):
         raise PermissionDenied("Your account is deactivated. Reactivate it in Settings first.")
 
 
+def _text_field(data, key):
+    """A free-text field from a hand-parsed body. JSON lets a client send a
+    number, list or object where text belongs, and slicing/stripping those
+    would crash with a 500, so anything that isn't text is a 400."""
+    value = data.get(key)
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValidationError({key: "Must be text."})
+    return value
+
+
 def _visible_profiles():
     return Profile.objects.filter(hidden=False, deactivated=False, user__is_active=True)
 
@@ -173,7 +185,7 @@ def report_member(request, user_id):
     if user_id == request.user.id:
         raise ValidationError("You can't report yourself.")
     reported_user = get_object_or_404(get_user_model(), pk=user_id)
-    reason = (request.data.get("reason") or "")[:300]
+    reason = _text_field(request.data, "reason")[:300]
 
     try:
         with transaction.atomic():
@@ -197,10 +209,10 @@ report_member.cls.throttle_scope = "reports"
 
 @api_view(["POST"])
 def submit_bug_report(request):
-    description = (request.data.get("description") or "").strip()
+    description = _text_field(request.data, "description").strip()
     if not description:
         raise ValidationError("Description can't be empty.")
-    page_url = (request.data.get("pageUrl") or "")[:500]
+    page_url = _text_field(request.data, "pageUrl")[:500]
     BugReport.objects.create(reporter=request.user, description=description[:2000], page_url=page_url)
     return Response(status=status.HTTP_201_CREATED)
 
@@ -209,10 +221,14 @@ submit_bug_report.cls.throttle_scope = "bug_reports"
 
 
 AVATAR_SIZE = 256
-# Comfortably above any real camera photo (a 108MP phone sensor tops out
-# around 108_000_000, a wide panorama a bit more) - this exists to block
-# decompression-bomb files, not legitimate high-res photos.
-MAX_AVATAR_PIXELS = 150_000_000
+# Covers a full-resolution 48MP phone photo. The cap exists because a
+# decoded image costs about 3-4 bytes per pixel in memory - several uploads
+# at once near the old 150MP limit could run a small server out of memory.
+MAX_AVATAR_PIXELS = 50_000_000
+# Only what the upload form offers. Without this Pillow will open any format
+# it knows (TIFF, PSD, EPS...) whatever content type the browser claimed,
+# and each of those parsers is more attack surface for no benefit.
+AVATAR_FORMATS = ["JPEG", "PNG", "WEBP"]
 
 
 def _avatar_thumbnail(upload):
@@ -224,9 +240,13 @@ def _avatar_thumbnail(upload):
     decompress into gigabytes of pixels).
     """
     try:
-        image = Image.open(upload)
+        image = Image.open(upload, formats=AVATAR_FORMATS)
         if image.width * image.height > MAX_AVATAR_PIXELS:
-            raise ValidationError("That image's dimensions are too large.")
+            raise ValidationError("That photo is too large. Try one under 50 megapixels.")
+        # JPEGs can be decoded straight at a fraction of full size, so even a
+        # 48MP photo only ever takes a few MB of memory here. Other formats
+        # ignore this and decode at full size (still within the cap above).
+        image.draft(image.mode, (AVATAR_SIZE * 2, AVATAR_SIZE * 2))
         image.load()
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         raise ValidationError("That file isn't a valid image.")
@@ -345,6 +365,15 @@ class ConnectionRequestListCreateView(generics.ListCreateAPIView):
         to_user_id = serializer.validated_data["to_user_id"]
         if to_user_id == user.id:
             raise ValidationError("You can't send a request to yourself.")
+        # Only someone you could actually find in Discover: this also turns a
+        # made-up id into a clean 400 instead of a foreign-key crash, and keeps
+        # requests away from hidden/suspended members and staff accounts that
+        # never made a profile.
+        target = _visible_profiles().filter(user_id=to_user_id, onboarding_complete=True).first()
+        if target is None:
+            raise ValidationError("That member isn't available to connect with.")
+        if serializer.validated_data["request_type"] == "referral" and not target.referrals_available:
+            raise ValidationError("This member isn't taking referral requests right now.")
 
         # A plain "does an open request already exist" check has a race: two
         # near-simultaneous sends (a double-click, a flaky retry) can both
@@ -496,6 +525,9 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
 def share_resume(request, pk):
     _ensure_can_interact(request.user)
     connection = _connection_or_404(request, pk)
+    # Same rule as plain messages - a resume is just a message with a file.
+    if connection.status == "cancelled":
+        raise ValidationError("This connection is cancelled, no new messages.")
     file = request.FILES.get("file")
     if not file:
         raise ValidationError("No file uploaded.")

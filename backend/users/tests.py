@@ -5,6 +5,7 @@ from unittest import mock
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import RequestFactory, TestCase, override_settings
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -61,8 +62,25 @@ class ClerkTokenVerificationTests(TestCase):
             self.authenticate()
 
     @override_settings(CLERK_AUTHORIZED_PARTIES=["https://unitedpsa.org"])
-    def test_token_without_azp_is_still_accepted(self):
-        user, claims = self.authenticate()
+    def test_token_without_azp_is_accepted_but_logged_once(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        with self.assertLogs("users.clerk_auth", level="WARNING") as logs:
+            user, claims = self.authenticate()
+            self.authenticate()
+            self.authenticate()
+        self.assertEqual(claims["sub"], "user_clock")
+        self.assertEqual(len(logs.records), 1)  # not once per request
+        self.assertIn("user_clock", logs.output[0])
+
+    @override_settings(CLERK_AUTHORIZED_PARTIES=["https://unitedpsa.org"], CLERK_REQUIRE_AZP=True)
+    def test_token_without_azp_is_rejected_once_required(self):
+        with self.assertRaises(AuthenticationFailed):
+            self.authenticate()
+
+    @override_settings(CLERK_AUTHORIZED_PARTIES=["https://unitedpsa.org"], CLERK_REQUIRE_AZP=True)
+    def test_token_for_our_site_still_works_once_azp_is_required(self):
+        user, claims = self.authenticate(azp="https://unitedpsa.org")
         self.assertEqual(claims["sub"], "user_clock")
 
 

@@ -237,7 +237,7 @@ export default function OnboardingPage() {
 
               <div className="field">
                 <label htmlFor="bio">Bio</label>
-                <textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="A couple sentences about your background and what you're looking for or can help with." />
+                <textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} rows={4} maxLength={2000} placeholder="A couple sentences about your background and what you're looking for or can help with." />
               </div>
               <div className="field">
                 <label htmlFor="location">Location</label>

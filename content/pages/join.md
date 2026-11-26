@@ -13,7 +13,7 @@ paths:
       - Networking opportunities
       - Community updates
       - Open to students, alumni & professionals
-    url: https://docs.google.com/forms/d/1jujOzdYDjdtrEd1EqfE3p8dRdq-FPAwDi5tt2tLZcDE/viewform?edit_requested=true
+    url: https://docs.google.com/forms/d/e/1FAIpQLSduf2PCAA3_WXkyEwv1mJrFUxTHp8R33Zp9ENk5sBLoNU1Jhg/viewform
     cta: Join UPSA
     accent: var(--moss)
   - tag: PSA CHAPTER

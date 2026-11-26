@@ -203,6 +203,7 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
               onChange={e => setDraft(e.target.value)}
               placeholder={`Message ${other.name.split(' ')[0]}…`}
               aria-label="Message"
+              maxLength={4000}
               disabled={sending}
             />
             <button type="submit" className="chat-popup-send" disabled={sending || !draft.trim()} aria-label="Send">
