@@ -81,7 +81,7 @@ export type ConnectionRequest = {
   createdAt: string;
 };
 
-export type ConnectionStatus = 'active' | 'completed' | 'cancelled';
+export type ConnectionStatus = 'active' | 'cancelled';
 
 export type Connection = {
   id: string;

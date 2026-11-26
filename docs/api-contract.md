@@ -125,7 +125,7 @@ Requests never expire. They stay pending until accepted, declined or cancelled.
 
 ```text
 id, requestId, memberIds [a, b], status, since, lastMessage
-status        active | completed | cancelled
+status        active | cancelled   (accepting a request creates it active; cancel is the only change)
 lastMessage   { text (first 140 characters), senderId, createdAt } or null
 ```
 
@@ -134,7 +134,6 @@ lastMessage   { text (first 140 characters), senderId, createdAt } or null
 | Method and path | Notes |
 | --- | --- |
 | `GET /api/connections/` | Yours only. Not paginated. |
-| `POST /api/connections/{id}/complete/` | Either member. Returns the connection. |
 | `POST /api/connections/{id}/cancel/` | Either member. Returns the connection. |
 
 ## Messages

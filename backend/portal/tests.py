@@ -447,8 +447,11 @@ class PortalApiTests(APITestCase):
         self.assertEqual(accept.status_code, 201)
         connection_id = accept.data["id"]
         self.assertEqual(set(accept.data["memberIds"]), {self.student.id, self.mentor.id})
-        # accepting is the whole lifecycle now - no separate "mark complete" step
-        self.assertEqual(accept.data["status"], "completed")
+        # a fresh connection is live - the dashboard's "Active connections"
+        # counts exactly this status
+        self.assertEqual(accept.data["status"], "active")
+        listed = self.client.get(reverse("connections")).data
+        self.assertEqual([c["status"] for c in listed], ["active"])
 
         # a stranger can't touch this connection
         stranger = User.objects.create(username="clerk:stranger")

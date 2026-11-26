@@ -549,8 +549,6 @@
 .status-declined { background: rgba(26,31,24,.08); color: var(--ink-3); }
 .status-expired { background: rgba(26,31,24,.08); color: var(--ink-3); }
 .status-cancelled { background: rgba(26,31,24,.08); color: var(--ink-3); }
-.status-completed { background: rgba(36,90,103,.12); color: #245A67; }
-
 /* ---------- Professional detail page ---------- */
 .pf-detail-head { display: flex; gap: 22px; align-items: center; margin-bottom: 26px; flex-wrap: wrap; }
 .pf-detail-info h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 30px; color: var(--ink); }

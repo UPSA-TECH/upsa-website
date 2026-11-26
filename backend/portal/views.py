@@ -384,10 +384,9 @@ def accept_request(request, pk):
         )
         req.status = "accepted"
         req.save(update_fields=["status", "updated_at"])
-        # Accepting is the whole lifecycle now - there's no separate "mark
-        # complete" step after the fact (see cancel_connection for the only
-        # other state a connection can move to).
-        connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="completed")
+        # A connection is either active or cancelled - there's no separate
+        # "mark complete" step (see cancel_connection for the only move).
+        connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="active")
     notifications.request_accepted(req)
     return Response(ConnectionSerializer(connection).data, status=status.HTTP_201_CREATED)
 

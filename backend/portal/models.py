@@ -17,7 +17,6 @@ REQUEST_STATUS_CHOICES = [
 
 CONNECTION_STATUS_CHOICES = [
     ("active", "Active"),
-    ("completed", "Completed"),
     ("cancelled", "Cancelled"),
 ]
 

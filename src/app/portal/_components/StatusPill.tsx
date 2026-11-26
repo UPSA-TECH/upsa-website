@@ -5,7 +5,6 @@ const LABELS: Record<string, string> = {
   expired: 'Expired',
   cancelled: 'Cancelled',
   active: 'Active',
-  completed: 'Completed',
 };
 
 export default function StatusPill({ status }: { status: string }) {
