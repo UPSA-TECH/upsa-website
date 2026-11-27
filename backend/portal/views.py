@@ -417,7 +417,7 @@ def accept_request(request, pk):
         # "mark complete" step (see cancel_connection for the only move).
         connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="active")
     notifications.request_accepted(req)
-    return Response(ConnectionSerializer(connection).data, status=status.HTTP_201_CREATED)
+    return Response(ConnectionSerializer(connection, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["POST"])
@@ -453,7 +453,17 @@ def cancel_connection(request, pk):
     connection = _connection_or_404(request, pk)
     connection.status = "cancelled"
     connection.save(update_fields=["status", "updated_at"])
-    return Response(ConnectionSerializer(connection).data)
+    return Response(ConnectionSerializer(connection, context={"request": request}).data)
+
+
+@api_view(["POST"])
+def mark_connection_read(request, pk):
+    """The member has this conversation open: everything in it up to now
+    counts as read. Allowed on cancelled connections too - reading old
+    messages doesn't reach out to anyone."""
+    connection = _connection_or_404(request, pk)
+    connection.mark_read(request.user.id, timezone.now())
+    return Response(ConnectionSerializer(connection, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -488,6 +498,8 @@ def _record_message(connection, sender, text, **extra):
         last_message_at=message.created_at,
         last_message_text=message.text[:140],
         last_message_sender_id=message.sender_id,
+        # Writing in a conversation means you've read it up to here.
+        **{connection.last_read_field(sender.id): message.created_at},
         updated_at=timezone.now(),
     )
     notifications.message_received(message)

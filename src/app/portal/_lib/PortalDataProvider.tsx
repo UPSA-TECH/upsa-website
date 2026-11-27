@@ -99,6 +99,7 @@ type ApiConnection = {
   status: Connection['status'];
   since: string;
   lastMessage?: { text: string; senderId: number; createdAt: string } | null;
+  lastReadAt?: string | null;
 };
 
 type ApiMessage = {
@@ -255,7 +256,20 @@ function toConnection(c: ApiConnection): Connection {
           createdAtIso: c.lastMessage.createdAt,
         }
       : null,
+    lastReadAtIso: c.lastReadAt ?? null,
   };
+}
+
+// Timestamps compared as instants, not strings, so a format difference
+// (fractional seconds, "Z" vs "+00:00") can never flip read/unread.
+function isLater(a: string, b: string): boolean {
+  return Date.parse(a) > Date.parse(b);
+}
+
+function latestIso(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return isLater(b, a) ? b : a;
 }
 
 function toChatMessage(m: ApiMessage): ChatMessage {
@@ -397,10 +411,10 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
   const loadStartedRef = useRef(false);
-  // connectionId -> ISO timestamp of the last message that connection's
-  // thread was actually viewed through (see markConnectionRead). Drives the
-  // unread badge/toast logic purely by comparing against each connection's
-  // lastMessage.createdAtIso - no separate "unread" flag to keep in sync.
+  // The source of truth for "read" is the server (each connection's
+  // lastReadAtIso, see markConnectionRead). This map only holds marks made in
+  // this tab that the server hasn't confirmed yet, so a chat stops looking
+  // unread the instant it's opened instead of after the request returns.
   const [lastReadAt, setLastReadAt] = useState<Record<string, string>>({});
 
   // PortalDataProvider lives at the portal layout, so it never unmounts
@@ -729,11 +743,42 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
-  const markConnectionRead = useCallback((connectionId: string, atIso: string) => {
-    setLastReadAt(prev =>
-      !prev[connectionId] || atIso > prev[connectionId] ? { ...prev, [connectionId]: atIso } : prev
-    );
-  }, []);
+  // Called whenever an open chat has loaded messages up to `atIso`. Only
+  // talks to the server when that's actually newer than what's already
+  // recorded as read, so the 5-second refresh of an open chat doesn't send a
+  // request each time - just once per new message.
+  const lastReadAtRef = useRef(lastReadAt);
+  useEffect(() => {
+    lastReadAtRef.current = lastReadAt;
+  }, [lastReadAt]);
+  const markConnectionRead = useCallback(
+    (connectionId: string, atIso: string) => {
+      const connection = stateRef.current.connections.find(c => c.id === connectionId);
+      const known = latestIso(connection?.lastReadAtIso ?? null, lastReadAtRef.current[connectionId] ?? null);
+      if (known && !isLater(atIso, known)) return;
+
+      setLastReadAt(prev => ({ ...prev, [connectionId]: atIso }));
+      call<ApiConnection>(`/api/connections/${connectionId}/read/`, { method: 'POST' })
+        .then(updated => {
+          setState(prev => ({
+            ...prev,
+            connections: prev.connections.map(c =>
+              c.id === connectionId ? { ...c, lastReadAtIso: latestIso(c.lastReadAtIso, updated.lastReadAt ?? null) } : c
+            ),
+          }));
+        })
+        .catch(() => {
+          // Drop the local mark so the chat's next refresh tries again.
+          setLastReadAt(prev => {
+            if (prev[connectionId] !== atIso) return prev;
+            const next = { ...prev };
+            delete next[connectionId];
+            return next;
+          });
+        });
+    },
+    [call]
+  );
 
   // Loads one conversation's messages (the latest 200). Called when a
   // conversation is opened and every few seconds while it stays open.
@@ -790,6 +835,8 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
                   time: 'Just now',
                   createdAtIso: created.createdAt,
                 },
+                // The server records sending as reading (see _record_message).
+                lastReadAtIso: latestIso(c.lastReadAtIso, created.createdAt),
               }
             : c
         ),
@@ -933,7 +980,11 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         messages: prev.messages.some(m => m.connectionId === connectionId) ? [...prev.messages, message] : prev.messages,
         connections: prev.connections.map(c =>
           c.id === connectionId
-            ? { ...c, lastMessage: { text: message.text, senderId: message.senderId, time: message.time, createdAtIso: created.createdAt } }
+            ? {
+                ...c,
+                lastMessage: { text: message.text, senderId: message.senderId, time: message.time, createdAtIso: created.createdAt },
+                lastReadAtIso: latestIso(c.lastReadAtIso, created.createdAt),
+              }
             : c
         ),
       }));
@@ -988,9 +1039,9 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     (connectionId: string) => {
       const c = state.connections.find(con => con.id === connectionId);
       const last = c?.lastMessage;
-      if (!last || last.senderId === currentUserId) return false;
-      const readAt = lastReadAt[connectionId];
-      return !readAt || last.createdAtIso > readAt;
+      if (!c || !last || last.senderId === currentUserId) return false;
+      const readAt = latestIso(c.lastReadAtIso, lastReadAt[connectionId] ?? null);
+      return !readAt || isLater(last.createdAtIso, readAt);
     },
     [state.connections, currentUserId, lastReadAt]
   );

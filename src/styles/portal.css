@@ -741,15 +741,17 @@ a.attention-row-title:hover { color: var(--moss); }
 /* ============================================================
    FLOATING CHAT WIDGET (docked bottom-right, every portal page)
    ============================================================ */
-.chat-dock { position: fixed; right: 24px; bottom: 0; z-index: 150; display: flex; align-items: flex-end; gap: 10px; pointer-events: none; }
-.chat-dock-popups { display: flex; align-items: flex-end; gap: 10px; flex-direction: row-reverse; pointer-events: none; }
+/* Widths here match DOCK_WIDTH / POPUP_WIDTH in ChatDock.tsx, which uses them
+   to decide how many popups fit beside the bar. */
+.chat-dock { position: fixed; right: 24px; bottom: 0; z-index: 150; display: flex; align-items: flex-end; gap: 12px; pointer-events: none; }
+.chat-dock-popups { display: flex; align-items: flex-end; gap: 12px; flex-direction: row-reverse; pointer-events: none; }
 .chat-dock-popups > * { pointer-events: auto; }
 
-.chat-dock-bar { width: 260px; flex: none; background: #fff; border-radius: 10px 10px 0 0; box-shadow: var(--shadow-lg); pointer-events: auto; overflow: hidden; }
+.chat-dock-bar { width: 340px; flex: none; background: #fff; border-radius: 12px 12px 0 0; box-shadow: var(--shadow-lg); pointer-events: auto; overflow: hidden; }
 .chat-dock-bar-head {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 13px 16px;
-  background: var(--moss-deep); color: #fff; font-size: 13.5px; font-weight: 600;
-  border-radius: 10px 10px 0 0; transition: background .15s;
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 14px 18px;
+  background: var(--moss-deep); color: #fff; font-size: 14px; font-weight: 600;
+  border-radius: 12px 12px 0 0; transition: background .15s;
 }
 .chat-dock-bar-head:hover { background: var(--moss); }
 .chat-dock-bar-label { flex: 1; text-align: left; }
@@ -757,8 +759,31 @@ a.attention-row-title:hover { color: var(--moss); }
   font-family: 'Geist Mono', monospace; font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
   background: rgba(255,255,255,.16); color: #fff;
 }
-.chat-dock-list { max-height: 320px; overflow-y: auto; padding: 6px; animation: fadeIn .15s var(--ease-out); }
-.chat-dock-item { position: relative; display: block; width: 100%; text-align: left; background: none; border: none; font: inherit; cursor: pointer; padding: 10px; border-radius: 8px; transition: background .15s; }
+.chat-dock-panel { display: flex; flex-direction: column; animation: fadeIn .15s var(--ease-out); }
+
+/* Search your connections - the way to start a chat that hasn't begun yet. */
+.chat-dock-search {
+  display: flex; align-items: center; gap: 8px; margin: 10px 10px 4px; padding: 0 10px 0 12px; height: 40px;
+  background: var(--paper); border: 1.5px solid var(--rule); border-radius: var(--radius-pill);
+  color: var(--ink-3); transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.chat-dock-search:focus-within { border-color: var(--moss); background: #fff; box-shadow: 0 0 0 3px var(--moss-soft); }
+.chat-dock-search input {
+  flex: 1; min-width: 0; height: 100%; border: none; background: transparent; outline: none;
+  font-family: 'Geist', sans-serif; font-size: 13.5px; color: var(--ink);
+}
+.chat-dock-search input::-webkit-search-cancel-button { display: none; }
+.chat-dock-search-clear {
+  display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  color: var(--ink-3); transition: background .15s, color .15s;
+}
+.chat-dock-search-clear:hover { background: var(--paper-deep); color: var(--ink); }
+
+.chat-dock-list { max-height: min(420px, 55vh); overflow-y: auto; padding: 6px; }
+.chat-dock-item {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: none; border: none; font: inherit; cursor: pointer; padding: 11px 10px; border-radius: 10px; transition: background .15s;
+}
 /* Divider between conversations, inset to the text so a hovered row's
    rounded background never paints over the line above or below it. */
 .chat-dock-item + .chat-dock-item::before {
@@ -766,36 +791,38 @@ a.attention-row-title:hover { color: var(--moss); }
 }
 .chat-dock-item:hover::before, .chat-dock-item:hover + .chat-dock-item::before { opacity: 0; }
 .chat-dock-item:hover { background: var(--paper-deep); }
+.chat-dock-item-body { flex: 1; min-width: 0; }
 .chat-dock-item-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.chat-dock-item-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+.chat-dock-item-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-dock-item-time { flex: none; font-family: 'Geist Mono', monospace; font-size: 10.5px; color: var(--ink-3); }
 .chat-dock-item.unread .chat-dock-item-time { color: var(--moss); font-weight: 500; }
-.chat-dock-item-preview { display: block; font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
-.chat-dock-empty { padding: 20px 10px; font-size: 13px; color: var(--ink-3); text-align: center; }
-.chat-dock-see-all { display: block; text-align: center; padding: 10px; font-size: 12px; color: var(--moss); font-weight: 600; border-top: var(--hairline); transition: background .15s; }
+.chat-dock-item.unread .chat-dock-item-preview { color: var(--ink-2); font-weight: 500; }
+.chat-dock-item-preview { display: block; font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.chat-dock-empty { padding: 22px 14px; font-size: 13px; line-height: 1.55; color: var(--ink-3); text-align: center; }
+.chat-dock-see-all { display: block; text-align: center; padding: 11px; font-size: 12.5px; color: var(--moss); font-weight: 600; border-top: var(--hairline); transition: background .15s; }
 .chat-dock-see-all:hover { background: var(--paper-deep); }
 
 .chat-popup {
-  width: 286px; height: 400px; flex: none; display: flex; flex-direction: column; overflow: hidden;
-  background: #fff; border-radius: 10px 10px 0 0; box-shadow: var(--shadow-lg);
+  width: 360px; height: min(500px, calc(100vh - 80px)); flex: none; display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border-radius: 12px 12px 0 0; box-shadow: var(--shadow-lg);
   animation: chatPopupIn .25s var(--ease-spring);
 }
 .chat-popup.minimized { height: auto; }
 @keyframes chatPopupIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 .chat-popup-head {
-  display: flex; align-items: center; gap: 9px; padding: 9px 8px 9px 12px; flex: none;
+  display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; flex: none;
   background: var(--moss-deep); color: #fff;
 }
 .chat-popup-head[role="button"] { cursor: pointer; }
-.chat-popup-head-name { flex: 1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-popup-head-name { flex: 1; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-popup-head-actions { display: flex; gap: 2px; flex: none; }
 .chat-popup-icon-btn {
   display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
   border-radius: 6px; color: rgba(255,255,255,.85); transition: background .15s, color .15s;
 }
 .chat-popup-icon-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
-.chat-popup-scroll { padding: 14px; }
-.chat-popup-input { padding: 10px; gap: 6px; }
+.chat-popup-scroll { padding: 16px 18px; }
+.chat-popup-input { padding: 12px; gap: 8px; }
 .chat-popup-send {
   display: flex; align-items: center; justify-content: center; flex: none;
   width: 34px; height: 34px; border-radius: 50%; background: var(--moss); color: #fff;
@@ -823,9 +850,19 @@ a.attention-row-title:hover { color: var(--moss); }
 @media (max-width: 960px) {
   .portal-shell:has(.portal-sidebar.open) .chat-dock { display: none; }
 }
+/* Small tablets: one popup beside the bar, both a little narrower so the
+   pair still fits inside the screen. */
+@media (min-width: 641px) and (max-width: 860px) {
+  .chat-dock { right: 16px; }
+  .chat-dock-bar { width: 300px; }
+  .chat-popup { width: min(360px, calc(100vw - 300px - 12px - 32px)); }
+}
 @media (max-width: 640px) {
   .chat-dock { right: 14px; left: auto; }
-  .chat-dock-bar { width: 190px; border-radius: 10px 10px 0 0; }
+  .chat-dock-bar { width: 200px; }
+  /* Opened on a phone, the list (and its search) gets the full width. */
+  .chat-dock-bar.open { width: calc(100vw - 28px); }
+  .chat-dock-list { max-height: 60vh; }
   .chat-dock-popups { position: fixed; inset: 0; flex-direction: column; gap: 0; z-index: 160; }
   .chat-dock-popups > *:not(:last-child) { display: none; }
   .chat-popup { width: 100%; height: 100%; border-radius: 0; animation: fadeIn .2s var(--ease-out); }

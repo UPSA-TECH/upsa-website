@@ -23,6 +23,7 @@ urlpatterns = [
     path("requests/<int:pk>/cancel/", views.cancel_request, name="request-cancel"),
     path("connections/", views.ConnectionListView.as_view(), name="connections"),
     path("connections/<int:pk>/cancel/", views.cancel_connection, name="connection-cancel"),
+    path("connections/<int:pk>/read/", views.mark_connection_read, name="connection-read"),
     path("connections/<int:pk>/share-resume/", views.share_resume, name="connection-share-resume"),
     path("connections/<int:pk>/messages/", views.ConnectionMessagesView.as_view(), name="connection-messages"),
     path("resume/<int:pk>/download/", views.download_resume, name="resume-download"),

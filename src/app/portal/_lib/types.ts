@@ -94,6 +94,9 @@ export type Connection = {
   // createdAtIso is kept alongside the humanized `time` purely to compare
   // against lastReadAt for unread tracking.
   lastMessage: { text: string; senderId: string; time: string; createdAtIso: string } | null;
+  // When I last had this conversation open, from the server - so unread
+  // survives a reload and is the same on every tab and device.
+  lastReadAtIso: string | null;
 };
 
 export type ChatMessage = {

@@ -199,10 +199,22 @@ class ConnectionSerializer(serializers.ModelSerializer):
     requestId = serializers.IntegerField(source="request_id", read_only=True)
     memberIds = serializers.SerializerMethodField()
     lastMessage = serializers.SerializerMethodField()
+    # When the requesting member last had this conversation open. Only ever
+    # their own - the other member's read state isn't exposed (no read receipts).
+    lastReadAt = serializers.SerializerMethodField()
 
     class Meta:
         model = Connection
-        fields = ["id", "requestId", "memberIds", "status", "since", "lastMessage"]
+        fields = ["id", "requestId", "memberIds", "status", "since", "lastMessage", "lastReadAt"]
+
+    def get_lastReadAt(self, obj):
+        request = self.context.get("request")
+        if request is None or not obj.includes(request.user.id):
+            return None
+        # Returned raw, like lastMessage.createdAt, so both go through the same
+        # JSON encoder and come out in the identical ISO format - the frontend
+        # compares the two as strings.
+        return obj.last_read_at_for(request.user.id)
 
     def get_lastMessage(self, obj):
         if obj.last_message_at is None:

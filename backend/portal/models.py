@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 
 from .storage import avatar_storage, resume_storage
 
@@ -227,12 +229,43 @@ class Connection(models.Model):
     last_message_at = models.DateTimeField(null=True, blank=True)
     last_message_text = models.CharField(max_length=140, blank=True)
     last_message_sender_id = models.IntegerField(null=True, blank=True)
+    # When each member last had this conversation open, so "unread" survives a
+    # reload and is shared across their tabs and devices. One column per
+    # member rather than a separate table: a connection only ever has two,
+    # and it keeps the connections list a single query.
+    member_a_last_read_at = models.DateTimeField(null=True, blank=True)
+    member_b_last_read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-since"]
 
     def includes(self, user_id):
         return user_id in (self.member_a_id, self.member_b_id)
+
+    def last_read_field(self, user_id):
+        if user_id == self.member_a_id:
+            return "member_a_last_read_at"
+        if user_id == self.member_b_id:
+            return "member_b_last_read_at"
+        raise ValueError("Not a member of this connection.")
+
+    def last_read_at_for(self, user_id):
+        return getattr(self, self.last_read_field(user_id))
+
+    def mark_read(self, user_id, at):
+        """Record that user_id has seen this conversation up to `at`. Only ever
+        moves forward, so a late or duplicate request can't un-read anything.
+        Also bumps updated_at, which is what makes the member's other tabs and
+        devices pick the change up on their next sync."""
+        field = self.last_read_field(user_id)
+        moved = (
+            Connection.objects.filter(pk=self.pk)
+            .filter(Q(**{f"{field}__isnull": True}) | Q(**{f"{field}__lt": at}))
+            .update(**{field: at, "updated_at": timezone.now()})
+        )
+        if moved:
+            setattr(self, field, at)
+        return bool(moved)
 
 
 ATTACHMENT_CHOICES = [

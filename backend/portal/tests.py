@@ -1,4 +1,5 @@
 import tempfile
+from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -7,6 +8,7 @@ from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.settings import api_settings
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
@@ -635,6 +637,108 @@ class PortalApiTests(APITestCase):
         )
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.data["attachment"], "")  # read-only fields, silently ignored on write
+
+
+class ReadStateTests(APITestCase):
+    """Unread state lives on the server, per member per conversation."""
+
+    def setUp(self):
+        self.me = User.objects.create(username="clerk:reader")
+        self.them = User.objects.create(username="clerk:writer")
+        req = ConnectionRequest.objects.create(from_user=self.me, to_user=self.them, request_type="connect", status="accepted")
+        self.connection = Connection.objects.create(request=req, member_a=self.me, member_b=self.them)
+
+    def as_(self, user):
+        self.client.force_authenticate(user=user)
+
+    def send(self, sender, text="hi"):
+        self.as_(sender)
+        res = self.client.post(reverse("connection-messages", args=[self.connection.id]), {"text": text}, format="json")
+        self.assertEqual(res.status_code, 201)
+        return res
+
+    def my_connection(self, user):
+        self.as_(user)
+        return next(c for c in self.client.get(reverse("connections")).data if c["id"] == self.connection.id)
+
+    def test_new_conversation_starts_unread_for_the_recipient(self):
+        self.send(self.them)
+        self.assertIsNone(self.my_connection(self.me)["lastReadAt"])
+
+    def test_opening_a_conversation_marks_it_read_and_it_stays_read(self):
+        self.send(self.them)
+        self.as_(self.me)
+        res = self.client.post(reverse("connection-read", args=[self.connection.id]))
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNotNone(res.data["lastReadAt"])
+
+        # A fresh load (a reload, another device) still sees it as read.
+        mine = self.my_connection(self.me)
+        self.assertGreaterEqual(mine["lastReadAt"], mine["lastMessage"]["createdAt"])
+
+    def test_read_state_is_per_member_and_private(self):
+        self.send(self.them)
+        self.connection.refresh_from_db()
+        their_read_before = self.connection.member_b_last_read_at  # set when they sent it
+
+        self.as_(self.me)
+        self.client.post(reverse("connection-read", args=[self.connection.id]))
+        self.connection.refresh_from_db()
+
+        # My read doesn't touch theirs...
+        self.assertEqual(self.connection.member_b_last_read_at, their_read_before)
+        self.assertGreater(self.connection.member_a_last_read_at, their_read_before)
+        # ...and each of us only ever sees our own (no read receipts).
+        self.assertEqual(self.my_connection(self.them)["lastReadAt"], their_read_before)
+        self.assertEqual(self.my_connection(self.me)["lastReadAt"], self.connection.member_a_last_read_at)
+
+    def test_sending_a_message_counts_as_reading_the_conversation(self):
+        self.send(self.them, "first")
+        self.send(self.me, "reply")
+        mine = self.my_connection(self.me)
+        self.assertEqual(mine["lastReadAt"], mine["lastMessage"]["createdAt"])
+
+    def test_a_newer_message_makes_it_unread_again(self):
+        self.send(self.them, "one")
+        self.as_(self.me)
+        self.client.post(reverse("connection-read", args=[self.connection.id]))
+        self.send(self.them, "two")
+        mine = self.my_connection(self.me)
+        self.assertLess(mine["lastReadAt"], mine["lastMessage"]["createdAt"])
+
+    def test_read_marker_never_moves_backwards(self):
+        later = timezone.now()
+        self.assertTrue(self.connection.mark_read(self.me.id, later))
+        self.assertFalse(self.connection.mark_read(self.me.id, later - timedelta(hours=1)))
+        self.connection.refresh_from_db()
+        self.assertEqual(self.connection.member_a_last_read_at, later)
+
+    def test_marking_read_moves_the_sync_version_so_other_tabs_update(self):
+        self.send(self.them)
+        self.as_(self.me)
+        before = self.client.get(reverse("sync")).data["version"]
+        self.client.post(reverse("connection-read", args=[self.connection.id]))
+        self.assertNotEqual(self.client.get(reverse("sync")).data["version"], before)
+
+    def test_strangers_cannot_mark_someone_elses_conversation_read(self):
+        stranger = User.objects.create(username="clerk:stranger")
+        self.as_(stranger)
+        self.assertEqual(self.client.post(reverse("connection-read", args=[self.connection.id])).status_code, 404)
+
+    def test_read_time_and_message_time_render_in_the_same_format(self):
+        # The frontend decides "unread" by comparing these two ISO strings.
+        self.send(self.me)
+        self.as_(self.me)
+        body = self.client.get(reverse("connections")).json()
+        mine = next(c for c in body if c["id"] == self.connection.id)
+        self.assertEqual(mine["lastReadAt"], mine["lastMessage"]["createdAt"])
+        self.assertIsInstance(mine["lastReadAt"], str)
+
+    def test_a_cancelled_conversation_can_still_be_marked_read(self):
+        self.send(self.them)
+        Connection.objects.filter(pk=self.connection.pk).update(status="cancelled")
+        self.as_(self.me)
+        self.assertEqual(self.client.post(reverse("connection-read", args=[self.connection.id])).status_code, 200)
 
 
 class ExtendedProfileTests(APITestCase):
