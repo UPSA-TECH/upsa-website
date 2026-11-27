@@ -7,10 +7,12 @@ import { byLatestMessage, shortTime, useNow } from '../../_lib/time';
 import Avatar from '../../_components/Avatar';
 
 export default function MessagesIndexPage() {
-  const { state, currentUserId, isConnectionUnread } = usePortalData();
+  const { state, currentUserId, isConnectionUnread, isBlocked } = usePortalData();
   const { openChat } = useChatWidget();
   const now = useNow();
-  const connections = state.connections.filter(c => c.memberIds.includes(currentUserId)).sort(byLatestMessage);
+  const connections = state.connections
+    .filter(c => c.memberIds.includes(currentUserId) && !c.memberIds.some(id => id !== currentUserId && isBlocked(id)))
+    .sort(byLatestMessage);
 
   return (
     <>

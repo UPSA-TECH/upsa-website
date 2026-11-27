@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { SendHorizontal, Paperclip, FileText, Download, Minus, X, Hand, MessageCircleOff } from 'lucide-react';
+import { SendHorizontal, Paperclip, FileText, Download, Minus, X, Hand, MessageCircleOff, Ban } from 'lucide-react';
 import { OPEN_THREAD_INTERVAL_MS, usePortalData } from '../_lib/PortalDataProvider';
 import { useChatWidget } from '../_lib/ChatWidgetProvider';
 import { ApiError } from '../_lib/api';
@@ -9,10 +9,12 @@ import { dayLabel, fullTime, messageTime, sameDay, useNow } from '../_lib/time';
 import Avatar from './Avatar';
 import { useToast } from './Toast';
 
-const ALLOWED_RESUME_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+// The server checks the file's real contents; this is just the quick,
+// friendlier first pass by extension (browsers report .docx types unreliably).
+const RESUME_EXTENSIONS = ['.pdf', '.docx'];
 
 export default function ChatPopup({ connectionId, minimized }: { connectionId: string; minimized: boolean }) {
-  const { state, currentUserId, sendMessage, loadMessages, shareResumeWithConnection, downloadResumeById } = usePortalData();
+  const { state, currentUserId, sendMessage, loadMessages, shareResumeWithConnection, downloadResumeById, blockMember } = usePortalData();
   const { closeChat, toggleMinimize } = useChatWidget();
   const toast = useToast();
   const [draft, setDraft] = useState('');
@@ -82,6 +84,25 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
     }
   }
 
+  async function handleBlock() {
+    if (!other) return;
+    const firstName = other.name.split(' ')[0];
+    if (
+      !window.confirm(
+        `Block ${firstName}? You won't be able to message each other or see each other's profiles, and your connection ends. ${firstName} won't be told. You can unblock them in Settings.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await blockMember(other.id);
+      closeChat(connectionId);
+      toast(`${firstName} is blocked. You can unblock them in Settings.`, 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not block. Try again.', 'error');
+    }
+  }
+
   function handlePickResume() {
     setAttachOpen(false);
     resumeInputRef.current?.click();
@@ -90,8 +111,14 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
   async function handleResumeChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!ALLOWED_RESUME_TYPES.includes(file.type)) {
-      toast('Please pick a PDF, DOC, or DOCX file.', 'error');
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.doc')) {
+      toast("Old Word .doc files aren't supported. Save it as .docx or PDF in Word, then try again.", 'error');
+      e.target.value = '';
+      return;
+    }
+    if (!RESUME_EXTENSIONS.some(ext => name.endsWith(ext))) {
+      toast('Resumes must be a PDF or a Word document (.docx).', 'error');
       e.target.value = '';
       return;
     }
@@ -123,6 +150,17 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
         <Avatar name={other.name} initials={other.initials} color={other.avatarColor} imageUrl={other.avatarUrl} size="sm" />
         <span className="chat-popup-head-name">{other.name}</span>
         <span className="chat-popup-head-actions">
+          {!minimized && (
+            <button
+              type="button"
+              className="chat-popup-icon-btn"
+              onClick={e => { e.stopPropagation(); handleBlock(); }}
+              aria-label={`Block ${other.name}`}
+              title={`Block ${other.name}`}
+            >
+              <Ban size={15} />
+            </button>
+          )}
           <button
             type="button"
             className="chat-popup-icon-btn"
@@ -208,7 +246,7 @@ export default function ChatPopup({ connectionId, minimized }: { connectionId: s
                   </button>
                 </div>
               )}
-              <input ref={resumeInputRef} type="file" accept=".pdf,.doc,.docx" hidden onChange={handleResumeChosen} />
+              <input ref={resumeInputRef} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden onChange={handleResumeChosen} />
             </div>
             <input
               value={draft}

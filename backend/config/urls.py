@@ -20,10 +20,14 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("api/users/", include("users.urls")),
     path("api/", include("portal.urls")),
 ]
+
+# Off the default /admin/ path, at whatever DJANGO_ADMIN_URL says - and not
+# served at all on a server where it hasn't been set (see settings.ADMIN_URL).
+if settings.ADMIN_URL:
+    urlpatterns.insert(0, path(settings.ADMIN_URL, admin.site.urls))
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

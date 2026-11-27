@@ -18,7 +18,7 @@ Quick health check: open `https://<backend>/api/health/`. It should say the back
 
 ## The admin panel
 
-`https://<backend>/admin/` (log in with the superuser you created; this is a Django login, separate from Clerk).
+`https://<backend>/<DJANGO_ADMIN_URL>/` (log in with the superuser you created; this is a Django login, separate from Clerk). It isn't at `/admin/`, and it isn't served at all if `DJANGO_ADMIN_URL` is unset. Five wrong passwords for one username within 15 minutes lock that username out for 15 minutes; it unlocks by itself. **Portal, Admin login failures** lists recent failed attempts.
 
 You can view and edit **Profiles, Connection requests, Connections, Messages, Resumes**, and **Users** (under Authentication and Authorization). Admins can read messages and see resume file names, so keep the number of admins small and mention this in the privacy policy.
 

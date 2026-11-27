@@ -115,4 +115,13 @@ export type ChatMessage = {
   resumeSizeLabel: string | null;
 };
 
+// Someone I've blocked. Only what Settings needs to list them - their full
+// profile is hidden from me while the block is in place.
+export type BlockedMember = {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  blockedAt: string;
+};
+
 export const AVATAR_COLORS = ['moss', 'gold', 'teal', 'plum', 'clay', 'slate'] as const;

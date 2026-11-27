@@ -6,14 +6,16 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
-from django.test import SimpleTestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.settings import api_settings
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
-from .models import Certification, Connection, ConnectionRequest, Education, Message, Profile, Resume, WorkExperience
+from django.db import IntegrityError, transaction
+
+from .models import Block, Certification, Connection, ConnectionRequest, Education, Message, Profile, Resume, WorkExperience
 from users.models import ClerkIdentity
 
 from .storage import avatar_storage, resume_storage
@@ -639,6 +641,368 @@ class PortalApiTests(APITestCase):
         self.assertEqual(res.data["attachment"], "")  # read-only fields, silently ignored on write
 
 
+@override_settings(
+    ADMIN_LOGIN_MAX_FAILURES_PER_USERNAME=5,
+    ADMIN_LOGIN_MAX_FAILURES_PER_IP=20,
+    ADMIN_LOGIN_LOCKOUT_MINUTES=15,
+    # Every attempt hashes a password; the real hasher is deliberately slow.
+    PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
+)
+class AdminSecurityTests(APITestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser("boss", "boss@example.com", "correct-horse-battery-staple")
+        self.factory = RequestFactory()
+
+    def attempt(self, password, username="boss", ip="203.0.113.7"):
+        from portal.admin_security import LockoutAdminAuthenticationForm
+
+        request = self.factory.post("/x/", HTTP_X_FORWARDED_FOR=f"10.0.0.1, {ip}")
+        form = LockoutAdminAuthenticationForm(request, data={"username": username, "password": password})
+        return form.is_valid(), form
+
+    def test_correct_password_signs_in(self):
+        ok, _ = self.attempt("correct-horse-battery-staple")
+        self.assertTrue(ok)
+
+    def test_locks_out_after_repeated_failures_even_with_the_right_password(self):
+        for _ in range(5):
+            self.assertFalse(self.attempt("wrong")[0])
+        ok, form = self.attempt("correct-horse-battery-staple")
+        self.assertFalse(ok)
+        self.assertIn("Too many failed sign-in attempts", str(form.errors))
+
+    def test_lockout_follows_the_username_across_ip_addresses(self):
+        for i in range(5):
+            self.attempt("wrong", ip=f"198.51.100.{i}")
+        self.assertFalse(self.attempt("correct-horse-battery-staple", ip="192.0.2.99")[0])
+
+    def test_one_ip_spraying_many_usernames_gets_locked_out(self):
+        for i in range(20):
+            self.attempt("wrong", username=f"guess{i}")
+        self.assertFalse(self.attempt("correct-horse-battery-staple")[0])  # same IP
+        self.assertTrue(self.attempt("correct-horse-battery-staple", ip="192.0.2.50")[0])  # elsewhere is fine
+
+    def test_lockout_expires_on_its_own(self):
+        from portal.models import AdminLoginFailure
+
+        for _ in range(5):
+            self.attempt("wrong")
+        AdminLoginFailure.objects.update(failed_at=timezone.now() - timedelta(minutes=16))
+        self.assertTrue(self.attempt("correct-horse-battery-staple")[0])
+
+    def test_success_clears_the_count(self):
+        from portal.models import AdminLoginFailure
+
+        for _ in range(3):
+            self.attempt("wrong")
+        self.assertTrue(self.attempt("correct-horse-battery-staple")[0])
+        self.assertFalse(AdminLoginFailure.objects.filter(username="boss").exists())
+
+    def test_client_ip_uses_the_proxy_appended_address(self):
+        from portal.admin_security import client_ip
+
+        request = self.factory.get("/", HTTP_X_FORWARDED_FOR="1.2.3.4, 203.0.113.7", REMOTE_ADDR="10.0.0.2")
+        self.assertEqual(client_ip(request), "203.0.113.7")
+        self.assertEqual(client_ip(self.factory.get("/", REMOTE_ADDR="10.0.0.2")), "10.0.0.2")
+
+
+class AdminUrlTests(SimpleTestCase):
+    def _admin_resolves(self, path):
+        import importlib
+
+        from django.urls import Resolver404, clear_url_caches, resolve
+
+        import config.urls
+
+        importlib.reload(config.urls)
+        clear_url_caches()
+        try:
+            with override_settings(ROOT_URLCONF="config.urls"):
+                resolve(path, urlconf=config.urls)
+            return True
+        except Resolver404:
+            return False
+
+    def tearDown(self):
+        import importlib
+
+        from django.urls import clear_url_caches
+
+        import config.urls
+
+        importlib.reload(config.urls)
+        clear_url_caches()
+
+    def test_admin_is_served_only_at_the_configured_path(self):
+        with override_settings(ADMIN_URL="staff-7f3k9q/"):
+            self.assertTrue(self._admin_resolves("/staff-7f3k9q/"))
+            self.assertFalse(self._admin_resolves("/admin/"))
+
+    def test_admin_is_not_served_when_no_path_is_configured(self):
+        with override_settings(ADMIN_URL=None):
+            self.assertFalse(self._admin_resolves("/admin/"))
+            self.assertTrue(self._admin_resolves("/api/health/"))  # the API is unaffected
+
+
+def _docx_bytes(extra_parts=()):
+    """A minimal but genuine .docx: a ZIP with the parts Word always writes."""
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("word/document.xml", "<w:document/>")
+        for name in extra_parts:
+            archive.writestr(name, "x")
+    return buffer.getvalue()
+
+
+def _zip_bytes():
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("notes.txt", "hello")
+    return buffer.getvalue()
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ResumeFileTypeTests(APITestCase):
+    """The real file type comes from the bytes, not the name or content type."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.me = User.objects.create(username="clerk:sender")
+        self.them = User.objects.create(username="clerk:recipient")
+        req = ConnectionRequest.objects.create(from_user=self.me, to_user=self.them, request_type="connect", status="accepted")
+        self.connection = Connection.objects.create(request=req, member_a=self.me, member_b=self.them)
+        self.client.force_authenticate(user=self.me)
+
+    def upload(self, content, name, content_type="application/octet-stream"):
+        return self.client.post(
+            reverse("connection-share-resume", args=[self.connection.id]),
+            {"file": _fake_file(content, name, content_type)},
+            format="multipart",
+        )
+
+    def test_a_real_pdf_and_a_real_docx_are_accepted(self):
+        pdf = self.upload(b"%PDF-1.7\n...", "My CV.pdf", "application/pdf")
+        self.assertEqual(pdf.status_code, 201, pdf.data)
+        self.assertEqual(pdf.data["resumeFileName"], "My CV.pdf")
+        self.client.force_authenticate(user=self.them)
+        download = self.client.get(reverse("resume-download", args=[pdf.data["resumeId"]]))
+        self.assertIn('filename="My CV.pdf"', download["Content-Disposition"])  # same name as shown in the chat
+        self.client.force_authenticate(user=self.me)
+
+        # Browsers often send .docx as application/octet-stream - still fine.
+        docx = self.upload(_docx_bytes(), "cv.docx")
+        self.assertEqual(docx.status_code, 201, docx.data)
+        self.assertEqual(docx.data["resumeFileName"], "cv.docx")
+
+    def test_legacy_doc_is_refused_with_a_helpful_message(self):
+        res = self.upload(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"x" * 100, "resume.doc", "application/msword")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("save it as .docx or PDF", str(res.data))
+
+    def test_files_pretending_to_be_a_resume_are_refused(self):
+        cases = {
+            "an .exe renamed to .pdf": (b"MZ\x90\x00" + b"x" * 100, "resume.pdf", "application/pdf"),
+            "an HTML page renamed to .pdf": (b"<html><script>alert(1)</script>", "resume.pdf", "application/pdf"),
+            "a plain .zip renamed to .docx": (_zip_bytes(), "resume.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            "a macro .docm renamed to .docx": (_docx_bytes(["word/vbaProject.bin"]), "resume.docx", "application/octet-stream"),
+            "a real PDF with the wrong extension": (b"%PDF-1.4 ...", "resume.exe", "application/pdf"),
+            "no extension": (b"%PDF-1.4 ...", "resume", "application/pdf"),
+        }
+        for label, (content, name, content_type) in cases.items():
+            with self.subTest(label):
+                res = self.upload(content, name, content_type)
+                self.assertEqual(res.status_code, 400, res.data)
+        self.assertFalse(Resume.objects.exists())
+
+    def test_showing_a_thread_never_reads_resume_files_from_storage(self):
+        for i in range(3):
+            self.assertEqual(self.upload(b"%PDF-1.4 " + b"x" * 2048, f"cv{i}.pdf", "application/pdf").status_code, 201)
+        url = reverse("connection-messages", args=[self.connection.id])
+        from django.db import connection as db_connection
+        from django.db.models.fields.files import FieldFile
+        from django.test.utils import CaptureQueriesContext
+
+        with mock.patch.object(FieldFile, "size", new_callable=mock.PropertyMock) as size, CaptureQueriesContext(db_connection) as ctx:
+            res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        size.assert_not_called()  # on R2 each of these would be a network request
+        self.assertEqual(res.data[0]["resumeSizeLabel"], "2 KB")
+        # The thread is a fixed number of queries however many resumes it has.
+        self.assertLessEqual(len(ctx.captured_queries), 6)
+
+    def test_stored_name_is_cleaned_and_matches_the_real_type(self):
+        res = self.upload(b"%PDF-1.4 ...", "../../etc/<evil>name.PDF", "application/pdf")
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["resumeFileName"], "evilname.pdf")
+
+
+class SafetyTests(APITestCase):
+    """Blocking, the re-request cooldown, and one live connection per pair."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.me = _discoverable(User.objects.create(username="clerk:me"))
+        self.them = _discoverable(User.objects.create(username="clerk:them"))
+
+    def as_(self, user):
+        self.client.force_authenticate(user=user)
+
+    def request_from(self, sender, receiver, **extra):
+        self.as_(sender)
+        return self.client.post(
+            reverse("requests"), {"toId": receiver.id, "requestType": "connect", "message": "hi", **extra}, format="json"
+        )
+
+    def connect(self):
+        req = ConnectionRequest.objects.create(from_user=self.me, to_user=self.them, request_type="connect", status="accepted")
+        return Connection.objects.create(request=req, member_a=self.me, member_b=self.them)
+
+    def block(self, blocker, blocked):
+        self.as_(blocker)
+        return self.client.post(reverse("member-block", args=[blocked.id]))
+
+    # --- blocking ---------------------------------------------------------
+
+    def test_blocking_works_both_ways_for_requests_and_profiles(self):
+        self.assertEqual(self.block(self.me, self.them).status_code, 201)
+
+        for sender, receiver in ((self.me, self.them), (self.them, self.me)):
+            with self.subTest(sender=sender.username):
+                res = self.request_from(sender, receiver)
+                self.assertEqual(res.status_code, 400)
+                # Same answer as a missing member: doesn't reveal the block.
+                self.assertIn("isn't available", str(res.data))
+                self.as_(sender)
+                self.assertEqual(self.client.get(reverse("member-profile", args=[receiver.id])).status_code, 404)
+                ids = [m["id"] for m in self.client.get(reverse("professionals") + "?search=Member").data["results"]]
+                self.assertNotIn(receiver.id, ids)
+        self.assertFalse(ConnectionRequest.objects.exists())
+
+    def test_blocking_ends_the_connection_and_pending_requests(self):
+        connection = self.connect()
+        pending = ConnectionRequest.objects.create(from_user=self.them, to_user=self.me, request_type="referral")
+        self.block(self.me, self.them)
+
+        connection.refresh_from_db()
+        pending.refresh_from_db()
+        self.assertEqual(connection.status, "cancelled")
+        self.assertEqual(pending.status, "cancelled")
+
+        for sender in (self.me, self.them):
+            with self.subTest(sender=sender.username):
+                self.as_(sender)
+                res = self.client.post(reverse("connection-messages", args=[connection.id]), {"text": "hello?"}, format="json")
+                self.assertEqual(res.status_code, 400)
+        self.assertFalse(Message.objects.exists())
+
+    def test_a_block_stops_messages_even_if_a_connection_were_still_active(self):
+        connection = self.connect()
+        Block.objects.create(blocker=self.them, blocked=self.me)  # bypasses the endpoint's clean-up
+        self.as_(self.me)
+        res = self.client.post(reverse("connection-messages", args=[connection.id]), {"text": "hi"}, format="json")
+        self.assertEqual(res.status_code, 403)
+
+    def test_cannot_accept_a_request_from_someone_blocked(self):
+        req = ConnectionRequest.objects.create(from_user=self.them, to_user=self.me, request_type="connect")
+        Block.objects.create(blocker=self.me, blocked=self.them)
+        self.as_(self.me)
+        self.assertEqual(self.client.post(reverse("request-accept", args=[req.id])).status_code, 400)
+        self.assertFalse(Connection.objects.exists())
+
+    def test_unblocking_from_settings_restores_visibility(self):
+        self.block(self.me, self.them)
+        self.as_(self.me)
+        listed = self.client.get(reverse("blocks")).data
+        self.assertEqual([row["id"] for row in listed], [self.them.id])
+        self.assertEqual(listed[0]["name"], f"Member {self.them.id}")
+
+        self.assertEqual(self.client.delete(reverse("member-block", args=[self.them.id])).status_code, 204)
+        self.assertEqual(self.client.get(reverse("blocks")).data, [])
+        self.assertEqual(self.client.get(reverse("member-profile", args=[self.them.id])).status_code, 200)
+        self.assertEqual(self.request_from(self.me, self.them).status_code, 201)
+
+    def test_block_list_is_private_and_blocking_is_idempotent(self):
+        self.assertEqual(self.block(self.me, self.them).status_code, 201)
+        self.assertEqual(self.block(self.me, self.them).status_code, 201)
+        self.assertEqual(Block.objects.count(), 1)
+        self.as_(self.them)
+        self.assertEqual(self.client.get(reverse("blocks")).data, [])
+
+    def test_cannot_block_yourself(self):
+        self.as_(self.me)
+        self.assertEqual(self.client.post(reverse("member-block", args=[self.me.id])).status_code, 400)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Block.objects.create(blocker=self.me, blocked=self.me)
+
+    # --- re-request cooldown ----------------------------------------------
+
+    def test_declined_member_must_wait_before_asking_again(self):
+        first = self.request_from(self.me, self.them)
+        self.as_(self.them)
+        self.client.post(reverse("request-decline", args=[first.data["id"]]))
+
+        again = self.request_from(self.me, self.them)
+        self.assertEqual(again.status_code, 400)
+        self.assertIn("declined your last request", str(again.data))
+
+        # Once the cooldown has passed, they can ask again.
+        ConnectionRequest.objects.filter(pk=first.data["id"]).update(updated_at=timezone.now() - timedelta(days=31))
+        self.assertEqual(self.request_from(self.me, self.them).status_code, 201)
+
+    def test_the_cooldown_only_applies_to_the_person_who_was_declined(self):
+        first = self.request_from(self.me, self.them)
+        self.as_(self.them)
+        self.client.post(reverse("request-decline", args=[first.data["id"]]))
+        # The member who said no can still reach out themselves.
+        self.assertEqual(self.request_from(self.them, self.me).status_code, 201)
+
+    def test_cancelling_your_own_request_has_no_cooldown(self):
+        first = self.request_from(self.me, self.them)
+        self.client.post(reverse("request-cancel", args=[first.data["id"]]))
+        self.assertEqual(self.request_from(self.me, self.them).status_code, 201)
+
+    # --- one live connection per pair -------------------------------------
+
+    def test_cannot_request_someone_you_are_already_connected_with(self):
+        self.connect()
+        for sender, receiver in ((self.me, self.them), (self.them, self.me)):
+            with self.subTest(sender=sender.username):
+                res = self.request_from(sender, receiver)
+                self.assertEqual(res.status_code, 400)
+                self.assertIn("already connected", str(res.data))
+
+    def test_database_refuses_a_second_live_connection_in_either_direction(self):
+        self.connect()
+        req = ConnectionRequest.objects.create(from_user=self.them, to_user=self.me, request_type="connect", status="accepted")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Connection.objects.create(request=req, member_a=self.them, member_b=self.me)
+
+    def test_a_cancelled_connection_doesnt_stop_reconnecting(self):
+        old = self.connect()
+        Connection.objects.filter(pk=old.pk).update(status="cancelled")
+        req = ConnectionRequest.objects.create(from_user=self.them, to_user=self.me, request_type="connect", status="accepted")
+        Connection.objects.create(request=req, member_a=self.them, member_b=self.me)  # no error
+        self.assertEqual(Connection.objects.exclude(status="cancelled").count(), 1)
+
+    def test_accepting_when_already_connected_is_a_clean_error(self):
+        self.connect()
+        req = ConnectionRequest.objects.create(from_user=self.them, to_user=self.me, request_type="connect")
+        self.as_(self.me)
+        res = self.client.post(reverse("request-accept", args=[req.id]))
+        self.assertEqual(res.status_code, 400)
+        req.refresh_from_db()
+        self.assertEqual(req.status, "pending")  # nothing half-applied
+
+
 class ReadStateTests(APITestCase):
     """Unread state lives on the server, per member per conversation."""
 
@@ -1115,6 +1479,21 @@ class ScalingTests(APITestCase):
         buffer = io.BytesIO()
         Image.new(mode, size, "green" if mode == "RGB" else 128).save(buffer, "PNG")
         return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+    def test_discover_is_a_fixed_number_of_queries_however_full_the_profiles_are(self):
+        others = [User.objects.create(username=f"clerk:p{i}") for i in range(20)]
+        for u in others:
+            profile = _discoverable(u)
+            profile = Profile.objects.get(user=u)
+            for _ in range(2):
+                Education.objects.create(profile=profile, school="UIC")
+                WorkExperience.objects.create(profile=profile, job_title="Engineer", company="Acme")
+                Certification.objects.create(profile=profile, name="AWS")
+        # count + page + blocks + connections + 3 prefetches; was 63 before.
+        with self.assertNumQueries(7):
+            res = self.client.get(reverse("professionals"))
+        self.assertEqual(len(res.data["results"]), 20)
+        self.assertEqual(len(res.data["results"][0]["education"]), 2)
 
     # --- the cheap "has anything changed?" check -----------------------------
 

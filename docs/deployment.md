@@ -58,12 +58,16 @@ Which host? For a launch that stays fast as membership grows (about 1,000 at fir
 | `WEB_CONCURRENCY` | optional | Number of gunicorn worker processes, default 3 (each runs 4 threads). Roughly one per CPU core. |
 | `DJANGO_SSL_REDIRECT` | optional | `true` by default. Set `false` only if the host already redirects http to https. |
 | `SENTRY_DSN` | optional | Error tracking. Off unless set - see "Error tracking" below. |
+| `DJANGO_ADMIN_URL` | **yes, for the admin** | The admin panel's path, something hard to guess, e.g. `staff-7f3k9q`. Unset on a server means no admin panel at all. |
+| `DJANGO_HSTS_SECONDS` | optional | How long browsers remember the API is HTTPS-only. Default one year (`31536000`). |
 | `CLERK_AUTHORIZED_PARTIES` | optional | Defaults to `FRONTEND_ORIGINS`. |
 | `CLERK_REQUIRE_AZP` | optional | `false` by default. When `true`, tokens that don't say which site they were issued for are rejected. Turn on only after the backend log has gone a few weeks without "Accepted a Clerk token with no azp claim" warnings from real members. |
 
 Do **not** set `DJANGO_DEBUG` on a server.
 
-After the first deploy, create an admin login for moderation. Open the host's shell and run `python manage.py createsuperuser`. The admin panel is at `https://<backend>/admin/`.
+After the first deploy, create an admin login for moderation. Either set `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD` and `DJANGO_SUPERUSER_EMAIL` (the start command creates or updates that login on every deploy), or open the host's shell and run `python manage.py createsuperuser`.
+
+The admin panel is at `https://<backend>/<DJANGO_ADMIN_URL>`, not the default `/admin/`. **If `DJANGO_ADMIN_URL` isn't set on a server, the admin isn't served at all**; the API keeps working. After 5 failed sign-ins for one username (or 20 from one IP address) within 15 minutes, sign-in is locked for 15 minutes, even with the right password. It unlocks by itself.
 
 ## Choosing a host
 
@@ -102,6 +106,7 @@ Set these in Site settings, Environment variables, then trigger a new deploy. **
 | `NEXT_PUBLIC_API_BASE_URL` | The backend's public URL, e.g. `https://api.unitedpsa.org`. **If this is missing the site quietly falls back to `http://localhost:8000` and the portal will not work.** |
 | `GOOGLE_CALENDAR_ID`, `GOOGLE_API_KEY` | For the events calendar (see `docs/google-calendar.md`) |
 | `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN` | optional | Error tracking - see "Error tracking" below. |
+| `CSP_REPORT_ONLY` | optional | Set to `true` only as an emergency switch if the Content Security Policy (`next.config.ts`) ever blocks something legitimate: browsers then report violations instead of blocking. The CSP builds its allow-list from `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_SENTRY_DSN`, so it follows those automatically. |
 
 The build settings are already in `netlify.toml`.
 

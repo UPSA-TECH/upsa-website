@@ -46,6 +46,21 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
+# Where the Django admin lives. Not the default /admin/ in production, so the
+# login page isn't where every bot looks first. Set DJANGO_ADMIN_URL to
+# something hard to guess, e.g. "staff-7f3k9q/". If it's unset on a server
+# the admin is simply not served (the API is unaffected) - it fails closed
+# rather than falling back to the well-known path.
+_admin_url = os.environ.get("DJANGO_ADMIN_URL", "").strip().strip("/")
+ADMIN_URL = f"{_admin_url}/" if _admin_url else ("admin/" if DEBUG else None)
+
+# Admin sign-in lockout (portal/admin_security.py): after this many failed
+# attempts for one username - or from one IP address, across usernames -
+# within the window, further attempts are refused until the window passes.
+ADMIN_LOGIN_MAX_FAILURES_PER_USERNAME = 5
+ADMIN_LOGIN_MAX_FAILURES_PER_IP = 20
+ADMIN_LOGIN_LOCKOUT_MINUTES = 15
+
 
 # Application definition
 
@@ -195,7 +210,9 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SSL_REDIRECT", "true").lower() in ("1", "true", "yes")
-    SECURE_HSTS_SECONDS = 3600  # raise once HTTPS is confirmed working end to end
+    # Browsers remember "this API is HTTPS-only" for a year. Override with
+    # DJANGO_HSTS_SECONDS if it ever needs to be shorter.
+    SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "31536000"))
 
 # Error tracking (Sentry). Off unless SENTRY_DSN is set, so a server with no
 # key configured just runs normally - nothing breaks, errors are simply not
@@ -252,6 +269,7 @@ REST_FRAMEWORK = {
         "messages": "60/min",
         "uploads": "20/hour",
         "reports": "10/day",
+        "blocks": "60/day",
         "bug_reports": "20/day",
     },
 }

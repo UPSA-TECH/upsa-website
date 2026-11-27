@@ -7,6 +7,7 @@ import { API_BASE, apiDownload, apiRequest } from './api';
 import { useToast } from '../_components/Toast';
 import {
   AVATAR_COLORS,
+  type BlockedMember,
   type Certification,
   type ChatMessage,
   type Connection,
@@ -324,6 +325,9 @@ type PortalState = {
   requests: ConnectionRequest[];
   connections: Connection[];
   messages: ChatMessage[];
+  // People I've blocked (Settings > Blocked members). Their conversations are
+  // hidden everywhere in the UI; the backend enforces the block itself.
+  blocked: BlockedMember[];
 };
 
 const EMPTY_STATE: PortalState = {
@@ -331,7 +335,19 @@ const EMPTY_STATE: PortalState = {
   requests: [],
   connections: [],
   messages: [],
+  blocked: [],
 };
+
+type ApiBlocked = { id: number; name: string; avatarUrl: string | null; blockedAt: string };
+
+function toBlocked(b: ApiBlocked): BlockedMember {
+  return {
+    id: String(b.id),
+    name: b.name,
+    avatarUrl: b.avatarUrl ? (/^https?:\/\//.test(b.avatarUrl) ? b.avatarUrl : `${API_BASE}${b.avatarUrl}`) : undefined,
+    blockedAt: b.blockedAt,
+  };
+}
 
 export type ProfessionalFilters = {
   search?: string;
@@ -378,6 +394,9 @@ type PortalContextValue = {
   downloadResumeById: (resumeId: string, fileName: string) => Promise<void>;
   shareResumeWithConnection: (connectionId: string, file: File) => Promise<void>;
   reportMember: (memberId: string, reason?: string) => Promise<void>;
+  blockMember: (memberId: string) => Promise<void>;
+  unblockMember: (memberId: string) => Promise<void>;
+  isBlocked: (memberId: string) => boolean;
   submitBugReport: (description: string, pageUrl: string) => Promise<void>;
   setDeactivated: (value: boolean) => Promise<void>;
   deleteAccount: () => Promise<void>;
@@ -483,11 +502,12 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
       // we keep is older than the data, so the next check simply refreshes again.
       const version = knownVersion ?? (await call<{ version: string }>('/api/sync/')).version;
 
-      const [me, incomingRaw, outgoingRaw, connectionsRaw] = await Promise.all([
+      const [me, incomingRaw, outgoingRaw, connectionsRaw, blockedRaw] = await Promise.all([
         call<ApiProfile>('/api/members/me/'),
         call<ApiRequest[]>('/api/requests/?direction=incoming'),
         call<ApiRequest[]>('/api/requests/?direction=outgoing'),
         call<ApiConnection[]>('/api/connections/'),
+        call<ApiBlocked[]>('/api/blocks/'),
       ]);
 
       const members: Record<string, Member> = { [String(me.id)]: toMember(me) };
@@ -509,6 +529,7 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
         requests: [...incomingRaw, ...outgoingRaw].map(toRequest),
         connections: connectionsRaw.map(toConnection),
         messages: [],
+        blocked: blockedRaw.map(toBlocked),
       };
       return { userId: String(me.id), snapshot, version };
     },
@@ -1002,6 +1023,42 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [call]
   );
 
+  // Blocking ends any connection and pending request between the two of us
+  // on the server; mirror that locally so the UI updates immediately.
+  const blockMember = useCallback(
+    async (memberId: string) => {
+      await call<void>(`/api/members/${memberId}/block/`, { method: 'POST' });
+      setState(prev => {
+        const member = prev.members[memberId];
+        const entry: BlockedMember = {
+          id: memberId,
+          name: member?.name ?? 'Member',
+          avatarUrl: member?.avatarUrl,
+          blockedAt: new Date().toISOString(),
+        };
+        return {
+          ...prev,
+          blocked: prev.blocked.some(b => b.id === memberId) ? prev.blocked : [entry, ...prev.blocked],
+          connections: prev.connections.map(c =>
+            c.memberIds.includes(memberId) && c.status !== 'cancelled' ? { ...c, status: 'cancelled' } : c
+          ),
+          requests: prev.requests.map(r =>
+            r.status === 'pending' && (r.fromId === memberId || r.toId === memberId) ? { ...r, status: 'cancelled' } : r
+          ),
+        };
+      });
+    },
+    [call]
+  );
+
+  const unblockMember = useCallback(
+    async (memberId: string) => {
+      await call<void>(`/api/members/${memberId}/block/`, { method: 'DELETE' });
+      setState(prev => ({ ...prev, blocked: prev.blocked.filter(b => b.id !== memberId) }));
+    },
+    [call]
+  );
+
   const submitBugReport = useCallback(
     async (description: string, pageUrl: string) => {
       await call<void>('/api/bug-reports/', {
@@ -1046,7 +1103,11 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     [state.connections, currentUserId, lastReadAt]
   );
 
-  const unreadMessageCount = state.connections.filter(c => isConnectionUnread(c.id)).length;
+  const isBlocked = useCallback((memberId: string) => state.blocked.some(b => b.id === memberId), [state.blocked]);
+
+  const unreadMessageCount = state.connections.filter(
+    c => isConnectionUnread(c.id) && !c.memberIds.some(id => id !== currentUserId && isBlocked(id))
+  ).length;
 
   if (!publicRoute && !ready) {
     return (
@@ -1087,6 +1148,9 @@ export function PortalDataProvider({ children }: { children: ReactNode }) {
     removeAvatar,
     shareResumeWithConnection,
     reportMember,
+    blockMember,
+    unblockMember,
+    isBlocked,
     submitBugReport,
     setDeactivated,
     deleteAccount,

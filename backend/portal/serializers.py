@@ -12,11 +12,7 @@ from .models import (
 )
 
 MAX_RESUME_SIZE = 5 * 1024 * 1024
-ALLOWED_RESUME_CONTENT_TYPES = {
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
+# Resume file types are checked from the file's contents - see resume_checks.py.
 
 # Free-text caps. The database columns are unbounded TextFields, so without
 # these a single member could store megabytes in a bio or message that then
@@ -241,8 +237,16 @@ class MessageSerializer(serializers.ModelSerializer):
     def get_resumeId(self, obj):
         return obj.resume_id
 
+    # Both read the values stored on the Resume row (see Resume.save), never
+    # the storage provider. Older rows from before those columns existed fall
+    # back to the file itself once and are filled in by migration 0020.
     def get_resumeFileName(self, obj):
-        return obj.resume.file.name.rsplit("/", 1)[-1] if obj.resume else None
+        if not obj.resume:
+            return None
+        return obj.resume.display_name or obj.resume.file.name.rsplit("/", 1)[-1]
 
     def get_resumeSizeLabel(self, obj):
-        return _size_label(obj.resume.file.size) if obj.resume else None
+        if not obj.resume:
+            return None
+        size = obj.resume.size_bytes
+        return _size_label(size) if size is not None else None

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { UserSearch, Flag, MessageSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { UserSearch, Flag, MessageSquare, Ban } from 'lucide-react';
 import { usePortalData } from '../../../_lib/PortalDataProvider';
 import { useChatWidget } from '../../../_lib/ChatWidgetProvider';
 import { ApiError } from '../../../_lib/api';
@@ -45,9 +46,11 @@ function relationshipWith(
 }
 
 export default function ProfessionalDetail({ id }: { id: string }) {
-  const { state, currentUserId, loadMember, reportMember, respondToRequest } = usePortalData();
-  const { openChat } = useChatWidget();
+  const { state, currentUserId, loadMember, reportMember, respondToRequest, blockMember, unblockMember, isBlocked } = usePortalData();
+  const { openChat, closeChat } = useChatWidget();
+  const router = useRouter();
   const toast = useToast();
+  const [blocking, setBlocking] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [responding, setResponding] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -55,13 +58,44 @@ export default function ProfessionalDetail({ id }: { id: string }) {
   const [reporting, setReporting] = useState(false);
 
   const professional = state.members[id];
+  const blocked = isBlocked(id);
 
   useEffect(() => {
-    if (professional) return;
+    if (professional || blocked) return;
     loadMember(id).then(member => {
       if (!member) setNotFound(true);
     });
-  }, [id, professional, loadMember]);
+  }, [id, professional, blocked, loadMember]);
+
+  async function handleUnblock() {
+    setBlocking(true);
+    try {
+      await unblockMember(id);
+      toast('Unblocked.', 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not unblock. Try again.', 'error');
+    } finally {
+      setBlocking(false);
+    }
+  }
+
+  // Profiles are hidden both ways while a block is in place - even one that's
+  // still cached from before - so show the block itself, with the way out.
+  if (blocked) {
+    return (
+      <div className="empty-state">
+        <Ban className="empty-state-icon" aria-hidden="true" />
+        <span>You&apos;ve blocked this member.</span>
+        <p className="empty-state-note">You can&apos;t see each other&apos;s profiles or message each other.</p>
+        <div className="empty-state-actions">
+          <button className="btn-outline btn-sm" onClick={handleUnblock} disabled={blocking}>
+            {blocking ? 'Working…' : 'Unblock'}
+          </button>
+          <Link href="/portal/discover" className="btn-outline btn-sm">Back to Discover</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!professional) {
     if (!notFound) return null;
@@ -90,6 +124,27 @@ export default function ProfessionalDetail({ id }: { id: string }) {
       toast(err instanceof ApiError ? err.message : 'Could not send that report. Try again.', 'error');
     } finally {
       setReporting(false);
+    }
+  }
+
+  async function handleBlock() {
+    if (
+      !window.confirm(
+        `Block ${firstName}? You won't see each other's profiles or be able to message each other, and any connection or request between you ends. ${firstName} won't be told. You can unblock them in Settings.`
+      )
+    ) {
+      return;
+    }
+    setBlocking(true);
+    try {
+      const shared = state.connections.find(c => c.memberIds.includes(id) && c.memberIds.includes(currentUserId));
+      await blockMember(id);
+      if (shared) closeChat(shared.id);
+      toast(`${firstName} is blocked. You can unblock them in Settings.`, 'success');
+      router.push('/portal/discover');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not block. Try again.', 'error');
+      setBlocking(false);
     }
   }
 
@@ -160,11 +215,14 @@ export default function ProfessionalDetail({ id }: { id: string }) {
       </div>
 
       {relationship.kind !== 'self' && (
-        <p style={{ marginBottom: 20 }}>
+        <div className="pf-detail-safety">
           <button className="btn-ghost danger" onClick={handleReport} disabled={reported || reporting}>
             <Flag size={15} /> {reported ? 'Reported' : reporting ? 'Reporting…' : 'Report this profile'}
           </button>
-        </p>
+          <button className="btn-ghost danger" onClick={handleBlock} disabled={blocking}>
+            <Ban size={15} /> {blocking ? 'Blocking…' : `Block ${firstName}`}
+          </button>
+        </div>
       )}
 
       <div className="detail-card">

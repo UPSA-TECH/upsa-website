@@ -1,5 +1,6 @@
 import io
 import uuid
+from datetime import timedelta
 
 from django.core.files.base import ContentFile
 from django.db.models import Max, Q
@@ -15,9 +16,10 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
-from . import notifications
+from . import notifications, resume_checks
 from .models import (
     REPORTS_TO_FLAG,
+    Block,
     BugReport,
     Certification,
     Connection,
@@ -31,7 +33,6 @@ from .models import (
 )
 from .serializers import (
     ALLOWED_AVATAR_CONTENT_TYPES,
-    ALLOWED_RESUME_CONTENT_TYPES,
     MAX_AVATAR_SIZE,
     MAX_RESUME_SIZE,
     CertificationSerializer,
@@ -88,6 +89,24 @@ def _visible_profiles():
     return Profile.objects.filter(hidden=False, deactivated=False, user__is_active=True)
 
 
+def blocked_between(a_id, b_id):
+    """True if either person has blocked the other. A block always works both
+    ways, so the blocked person can't simply reach out from their side."""
+    return Block.objects.filter(Q(blocker_id=a_id, blocked_id=b_id) | Q(blocker_id=b_id, blocked_id=a_id)).exists()
+
+
+def _blocked_ids(user):
+    """Everyone this user has blocked or been blocked by."""
+    pairs = Block.objects.filter(Q(blocker=user) | Q(blocked=user)).values_list("blocker_id", "blocked_id")
+    return {b if a == user.id else a for a, b in pairs}
+
+
+# How long someone has to wait before asking a member again after that member
+# declined them - long enough that "no" sticks, short enough that it isn't
+# permanent (blocking is the permanent option).
+REQUEST_COOLDOWN = timedelta(days=30)
+
+
 # --- Member / profile ---------------------------------------------------
 
 
@@ -114,7 +133,8 @@ class MemberProfileView(generics.RetrieveAPIView):
     lookup_field = "user_id"
 
     def get_queryset(self):
-        return _visible_profiles()
+        # A block hides both people's profiles from each other.
+        return _visible_profiles().exclude(user_id__in=_blocked_ids(self.request.user))
 
 
 # --- Education / experience / certifications --------------------------------
@@ -205,6 +225,53 @@ def report_member(request, user_id):
 
 
 report_member.cls.throttle_scope = "reports"
+
+
+@api_view(["POST", "DELETE"])
+def block_member(request, user_id):
+    """POST blocks, DELETE unblocks. Both are idempotent, and neither needs
+    any staff involvement or tells the other person."""
+    if user_id == request.user.id:
+        raise ValidationError("You can't block yourself.")
+    target = get_object_or_404(get_user_model(), pk=user_id)
+
+    if request.method == "DELETE":
+        Block.objects.filter(blocker=request.user, blocked=target).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    me = request.user
+    now = timezone.now()
+    with transaction.atomic():
+        Block.objects.get_or_create(blocker=me, blocked=target)
+        # End everything open between the two of them. updated_at moves too,
+        # so both people's portals pick it up on their next sync.
+        ConnectionRequest.objects.filter(status="pending").filter(
+            Q(from_user=me, to_user=target) | Q(from_user=target, to_user=me)
+        ).update(status="cancelled", updated_at=now)
+        Connection.objects.exclude(status="cancelled").filter(
+            Q(member_a=me, member_b=target) | Q(member_a=target, member_b=me)
+        ).update(status="cancelled", updated_at=now)
+    return Response(status=status.HTTP_201_CREATED)
+
+
+block_member.cls.throttle_scope = "blocks"
+
+
+@api_view(["GET"])
+def list_blocks(request):
+    """The people I've blocked, for the Unblock list in Settings. Only name
+    and photo: their profile is otherwise hidden from me."""
+    blocks = Block.objects.filter(blocker=request.user).select_related("blocked__profile")
+    rows = []
+    for block in blocks:
+        profile = getattr(block.blocked, "profile", None)
+        rows.append({
+            "id": block.blocked_id,
+            "name": (profile.name if profile and profile.name else "Former member"),
+            "avatarUrl": profile.avatar.url if profile and profile.avatar else None,
+            "blockedAt": block.created_at,
+        })
+    return Response(rows)
 
 
 @api_view(["POST"])
@@ -315,7 +382,7 @@ class ProfessionalListView(generics.ListAPIView):
             or params.get("university") or params.get("referralsAvailable") == "true"
         )
 
-        qs = _visible_profiles().filter(onboarding_complete=True).exclude(user=user)
+        qs = _visible_profiles().filter(onboarding_complete=True).exclude(user=user).exclude(user_id__in=_blocked_ids(user))
 
         if not has_filters:
             connected_ids = set()
@@ -342,7 +409,9 @@ class ProfessionalListView(generics.ListAPIView):
             qs = qs.filter(university__icontains=university)
         if params.get("referralsAvailable") == "true":
             qs = qs.filter(referrals_available=True)
-        return qs.order_by("name")
+        # Each card includes education/experience/certifications. Without
+        # prefetching, that's 3 more queries per profile - 60 extra per page.
+        return qs.order_by("name").prefetch_related("education", "experience", "certifications")
 
 
 # --- Connection requests ----------------------------------------------------
@@ -370,7 +439,9 @@ class ConnectionRequestListCreateView(generics.ListCreateAPIView):
         # requests away from hidden/suspended members and staff accounts that
         # never made a profile.
         target = _visible_profiles().filter(user_id=to_user_id, onboarding_complete=True).first()
-        if target is None:
+        # A block gets the same answer as a missing member, so it doesn't
+        # reveal that you were blocked.
+        if target is None or blocked_between(user.id, to_user_id):
             raise ValidationError("That member isn't available to connect with.")
         if serializer.validated_data["request_type"] == "referral" and not target.referrals_available:
             raise ValidationError("This member isn't taking referral requests right now.")
@@ -396,6 +467,23 @@ class ConnectionRequestListCreateView(generics.ListCreateAPIView):
             if open_between.exists():
                 raise ValidationError("There's already an open request between you two.")
 
+            already_connected = Connection.objects.exclude(status="cancelled").filter(
+                Q(member_a=user, member_b_id=to_user_id) | Q(member_a_id=to_user_id, member_b=user)
+            )
+            if already_connected.exists():
+                raise ValidationError("You're already connected with this member.")
+
+            last_declined = (
+                ConnectionRequest.objects.filter(from_user=user, to_user_id=to_user_id, status="declined")
+                .order_by("-updated_at")
+                .first()
+            )
+            if last_declined and last_declined.updated_at > timezone.now() - REQUEST_COOLDOWN:
+                retry_on = (last_declined.updated_at + REQUEST_COOLDOWN).date()
+                raise ValidationError(
+                    f"This member declined your last request. You can send another after {retry_on:%B} {retry_on.day}."
+                )
+
             notifications.request_received(serializer.save(from_user=user))
 
 
@@ -411,11 +499,22 @@ def accept_request(request, pk):
         req = get_object_or_404(
             ConnectionRequest.objects.select_for_update(), pk=pk, to_user=request.user, status="pending"
         )
+        if blocked_between(req.from_user_id, req.to_user_id):
+            raise ValidationError("This request can't be accepted.")
         req.status = "accepted"
         req.save(update_fields=["status", "updated_at"])
         # A connection is either active or cancelled - there's no separate
         # "mark complete" step (see cancel_connection for the only move).
-        connection = Connection.objects.create(request=req, member_a=req.from_user, member_b=req.to_user, status="active")
+        # The database refuses a second live connection for the same pair
+        # (Connection.Meta.constraints), e.g. if the other person's request
+        # to me was accepted first.
+        try:
+            with transaction.atomic():
+                connection = Connection.objects.create(
+                    request=req, member_a=req.from_user, member_b=req.to_user, status="active"
+                )
+        except IntegrityError:
+            raise ValidationError("You're already connected with this member.")
     notifications.request_accepted(req)
     return Response(ConnectionSerializer(connection, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
@@ -506,6 +605,15 @@ def _record_message(connection, sender, text, **extra):
     return message
 
 
+def _ensure_can_message(connection):
+    if connection.status == "cancelled":
+        raise ValidationError("This connection is cancelled, no new messages.")
+    # Blocking cancels the connection, but check directly too so nothing
+    # else (a future "reconnect" path, a race) can let a message through.
+    if blocked_between(connection.member_a_id, connection.member_b_id):
+        raise PermissionDenied("You can't message this member.")
+
+
 class ConnectionMessagesView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     pagination_class = None
@@ -519,13 +627,14 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
         # conversation must never make this request slower over time.
         connection = self._connection()
         latest_ids = Message.objects.filter(connection=connection).order_by("-id").values_list("id", flat=True)[:MESSAGES_PER_THREAD]
-        return Message.objects.filter(id__in=list(latest_ids)).order_by("created_at", "id")
+        # select_related: one query for the whole thread instead of one more
+        # per resume message.
+        return Message.objects.filter(id__in=list(latest_ids)).select_related("resume").order_by("created_at", "id")
 
     def perform_create(self, serializer):
         _ensure_can_interact(self.request.user)
         connection = self._connection()
-        if connection.status == "cancelled":
-            raise ValidationError("This connection is cancelled, no new messages.")
+        _ensure_can_message(connection)
         message = _record_message(connection, self.request.user, serializer.validated_data["text"])
         serializer.instance = message
 
@@ -537,16 +646,17 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
 def share_resume(request, pk):
     _ensure_can_interact(request.user)
     connection = _connection_or_404(request, pk)
-    # Same rule as plain messages - a resume is just a message with a file.
-    if connection.status == "cancelled":
-        raise ValidationError("This connection is cancelled, no new messages.")
+    # Same rules as plain messages - a resume is just a message with a file.
+    _ensure_can_message(connection)
     file = request.FILES.get("file")
     if not file:
         raise ValidationError("No file uploaded.")
-    if file.content_type not in ALLOWED_RESUME_CONTENT_TYPES:
-        raise ValidationError("Resume must be a PDF, DOC, or DOCX file.")
     if file.size > MAX_RESUME_SIZE:
         raise ValidationError("Resume must be under 5MB.")
+    # Checked from the file's actual bytes plus its extension, not the
+    # content type the browser claims (see resume_checks.py).
+    kind = resume_checks.resume_kind(file)
+    file.name = resume_checks.safe_resume_name(file.name, kind)
 
     resume = Resume.objects.create(sender=request.user, file=file)
     message = _record_message(connection, request.user, "Shared a resume", attachment="resume", resume=resume)
@@ -566,5 +676,6 @@ def download_resume(request, pk):
     if message is None or not message.connection.includes(request.user.id):
         raise Http404
 
-    filename = resume.file.name.rsplit("/", 1)[-1]
+    # The same name shown in the chat (already cleaned up at upload).
+    filename = resume.display_name or resume.file.name.rsplit("/", 1)[-1]
     return FileResponse(resume.file.open("rb"), as_attachment=True, filename=filename)

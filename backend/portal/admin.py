@@ -1,6 +1,23 @@
 from django.contrib import admin
 
-from .models import BugReport, Connection, ConnectionRequest, Message, Profile, ProfileReport, Resume
+from .admin_security import LockoutAdminAuthenticationForm
+from .models import AdminLoginFailure, Block, BugReport, Connection, ConnectionRequest, Message, Profile, ProfileReport, Resume
+
+# Repeated failed sign-ins lock that username / IP out for a while
+# (portal/admin_security.py). The admin's address comes from DJANGO_ADMIN_URL.
+admin.site.login_form = LockoutAdminAuthenticationForm
+admin.site.site_header = "UPSA Portal admin"
+
+
+@admin.register(AdminLoginFailure)
+class AdminLoginFailureAdmin(admin.ModelAdmin):
+    # Read-only audit trail of failed admin sign-ins; rows expire after a day.
+    list_display = ["username", "ip_address", "failed_at"]
+    search_fields = ["username", "ip_address"]
+    readonly_fields = ["username", "ip_address", "failed_at"]
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Profile)
@@ -48,6 +65,14 @@ class ProfileReportAdmin(admin.ModelAdmin):
     search_fields = ["reported__username", "reporter__username", "reason"]
     ordering = ["-created_at"]
     readonly_fields = ["reporter", "reported", "reason", "created_at"]
+
+
+@admin.register(Block)
+class BlockAdmin(admin.ModelAdmin):
+    # Read-only record: members block and unblock themselves from Settings.
+    list_display = ["blocker", "blocked", "created_at"]
+    search_fields = ["blocker__username", "blocked__username"]
+    readonly_fields = ["blocker", "blocked", "created_at"]
 
 
 @admin.register(BugReport)

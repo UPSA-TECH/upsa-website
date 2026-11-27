@@ -29,7 +29,7 @@ The backend verifies the token's signature, issuer, expiry (with 10 seconds of c
 | 404 | Not found, or not yours. |
 | 429 | Rate limit hit. See below. |
 
-**Rate limits** (per signed-in member): 600 requests/minute overall. Writes only: connection requests 30/day, messages 60/minute, uploads (resume and photo) 20/hour. Reads are never counted against the write limits.
+**Rate limits** (per signed-in member): 600 requests/minute overall. Writes only: connection requests 30/day, messages 60/minute, uploads (resume and photo) 20/hour, reports 10/day, blocks 60/day. Reads are never counted against the write limits.
 
 ## Health
 
@@ -75,6 +75,8 @@ emailNotifications  boolean, default true. Only the owner ever sees this field.
 
 ### Reporting a profile
 
+**Blocking.** `POST /api/members/{id}/block/` blocks a member (201, idempotent) and ends any connection and pending request between you. `DELETE` on the same URL unblocks (204). `GET /api/blocks/` lists the people you've blocked as `[{id, name, avatarUrl, blockedAt}]`. A block works both ways: neither person can see the other's profile (404), find them in Discover, send a request, accept one, or message (403). Throttled to 60/day.
+
 `POST /api/members/{id}/report/` - any authenticated member, body `{reason}` (optional, max 300 characters). Returns 201, or 200 if you'd already reported that profile (a no-op, not an error - at most one report per reporter per profile). 400 if you try to report yourself. Throttled to 10/day per user.
 
 Once **3 distinct members** have reported the same profile, it's marked `flagged_for_review` in the Django admin (not exposed via this API) for an admin to look at. Reporting never auto-hides anyone from Discover by itself - an admin decides whether to deactivate the account after reviewing.
@@ -116,8 +118,8 @@ Requests never expire. They stay pending until accepted, declined or cancelled.
 | Method and path | Who | Notes |
 | --- | --- | --- |
 | `GET /api/requests/?direction=incoming` or `outgoing` | you | Default `incoming`. Not paginated. |
-| `POST /api/requests/` | you | Body `{toId, requestType, message}`. `fromId` comes from the token. 400 if you send it to yourself, or if a pending request already exists between the two of you in either direction. Emails the recipient. |
-| `POST /api/requests/{id}/accept/` | recipient only, while pending | Returns 201 and the new **connection**. Emails the requester. |
+| `POST /api/requests/` | you | Body `{toId, requestType, message}`. `fromId` comes from the token. 400 if you send it to yourself; if the member isn't discoverable or either of you has blocked the other (same message for both, so a block isn't revealed); if a pending request already exists between you in either direction; if you're already connected; or within 30 days of that member declining your last request. Emails the recipient. |
+| `POST /api/requests/{id}/accept/` | recipient only, while pending | Returns 201 and the new **connection**. 400 if either of you has blocked the other, or you're already connected (the database allows only one live connection per pair). Emails the requester. |
 | `POST /api/requests/{id}/decline/` | recipient only, while pending | Returns the request. No reason is taken, and only the requester ever learns of it. |
 | `POST /api/requests/{id}/cancel/` | requester only, while pending | Returns the request. |
 
@@ -160,7 +162,7 @@ The portal calls this every 30 seconds (each tab is randomly offset by up to 20%
 
 ## Resume
 
-Sent straight from a member's computer into one conversation at a time - not a profile fixture. There's no "my resume" record: every share is its own upload, scoped to the message and connection it was sent in. PDF, DOC or DOCX, up to 5 MB. Never included in any list, only served to the sender or the other member of that connection.
+Sent straight from a member's computer into one conversation at a time - not a profile fixture. There's no "my resume" record: every share is its own upload, scoped to the message and connection it was sent in. PDF or DOCX only, up to 5 MB. The type is checked from the file's contents as well as its extension (a renamed file is refused), and legacy `.doc` is refused with a message asking for `.docx` or PDF. Never included in any list, only served to the sender or the other member of that connection.
 
 | Method and path | Notes |
 | --- | --- |

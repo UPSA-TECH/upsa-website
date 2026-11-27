@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Greatest, Least
 from django.utils import timezone
 
 from .storage import avatar_storage, resume_storage
@@ -177,6 +178,44 @@ class ProfileReport(models.Model):
         return f"{self.reporter_id} reported {self.reported_id}"
 
 
+class Block(models.Model):
+    """`blocker` never wants to hear from `blocked` again. Takes effect in
+    both directions (neither can see the other's profile, request, or
+    message - see views.blocked_between) and needs no staff involvement.
+    Reversible: the blocker deletes the row from Settings."""
+
+    blocker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocks_made")
+    blocked = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocks_received")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["blocker", "blocked"], name="one_block_per_pair"),
+            models.CheckConstraint(condition=~Q(blocker=models.F("blocked")), name="cannot_block_yourself"),
+        ]
+
+    def __str__(self):
+        return f"{self.blocker_id} blocked {self.blocked_id}"
+
+
+class AdminLoginFailure(models.Model):
+    """One failed sign-in to the Django admin. Counted by
+    portal/admin_security.py to lock out password guessing. Kept in the
+    database rather than the cache so the count is shared by every worker
+    process even without Redis. Old rows are pruned automatically."""
+
+    username = models.CharField(max_length=150, db_index=True)
+    ip_address = models.CharField(max_length=64, db_index=True)
+    failed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-failed_at"]
+
+    def __str__(self):
+        return f"{self.username or '?'} from {self.ip_address} at {self.failed_at:%Y-%m-%d %H:%M}"
+
+
 class BugReport(models.Model):
     """A free-text bug report from the little side-tab form in the portal.
     Read in the admin, not acted on automatically - no status/severity
@@ -238,6 +277,18 @@ class Connection(models.Model):
 
     class Meta:
         ordering = ["-since"]
+        constraints = [
+            # At most one live connection per pair of people, whichever of
+            # them sent the request (hence LEAST/GREATEST, not the raw
+            # columns). Cancelled ones don't count, so history is kept and a
+            # pair can reconnect later.
+            models.UniqueConstraint(
+                Least("member_a", "member_b"),
+                Greatest("member_a", "member_b"),
+                condition=~Q(status="cancelled"),
+                name="one_active_connection_per_pair",
+            ),
+        ]
 
     def includes(self, user_id):
         return user_id in (self.member_a_id, self.member_b_id)
@@ -302,3 +353,15 @@ class Resume(models.Model):
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="shared_resumes")
     file = models.FileField(upload_to=resume_upload_path, storage=resume_storage)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    # Recorded at upload so showing a resume in a chat never has to ask the
+    # storage provider - on R2, reading file.size is a network round trip,
+    # and an open chat refreshes every few seconds.
+    display_name = models.CharField(max_length=255, blank=True)
+    size_bytes = models.PositiveIntegerField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.display_name:
+            self.display_name = self.file.name.rsplit("/", 1)[-1]
+        if self.file and self.size_bytes is None:
+            self.size_bytes = self.file.size  # the upload is still local here, so this is free
+        super().save(*args, **kwargs)

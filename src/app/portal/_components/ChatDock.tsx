@@ -31,15 +31,17 @@ function useMaxVisibleChats(): number {
 }
 
 export default function ChatDock() {
-  const { state, currentUserId, isConnectionUnread, unreadMessageCount } = usePortalData();
+  const { state, currentUserId, isConnectionUnread, unreadMessageCount, isBlocked } = usePortalData();
   const { openChats, minimized, openChat } = useChatWidget();
   const now = useNow();
   const maxVisible = useMaxVisibleChats();
   const [barOpen, setBarOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId));
-  const otherOf = (c: Connection) => state.members[c.memberIds.find(id => id !== currentUserId)!];
+  const otherIdOf = (c: Connection) => c.memberIds.find(id => id !== currentUserId)!;
+  const otherOf = (c: Connection) => state.members[otherIdOf(c)];
+  // Conversations with someone I've blocked are hidden entirely.
+  const myConnections = state.connections.filter(c => c.memberIds.includes(currentUserId) && !isBlocked(otherIdOf(c)));
 
   // The list itself: only conversations that have actually started (either
   // side sent something), newest first.

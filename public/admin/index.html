@@ -7,6 +7,18 @@
 </head>
 <body>
   <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
-  <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
+  <!--
+    Decap CMS is pinned to one exact release with a Subresource Integrity hash,
+    so the browser refuses to run it if the file on the CDN ever changes
+    (this page can commit to the repo, so a tampered script would be serious).
+    To upgrade: pick a release at least a couple of weeks old, then
+      curl -sL https://unpkg.com/decap-cms@VERSION/dist/decap-cms.js | openssl dgst -sha384 -binary | openssl base64 -A
+    and update both the version and the integrity value below.
+  -->
+  <script
+    src="https://unpkg.com/decap-cms@3.17.3/dist/decap-cms.js"
+    integrity="sha384-RWRzuHfiZSWCt3nEvG7B0v3cMgM1C2UuJmgBSL92GQh4uXmNSkbcthql/mNBqvjr"
+    crossorigin="anonymous"
+  ></script>
 </body>
 </html>

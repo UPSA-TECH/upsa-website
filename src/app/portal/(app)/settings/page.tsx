@@ -4,16 +4,30 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { usePortalData } from '../../_lib/PortalDataProvider';
+import { initialsFromName, usePortalData } from '../../_lib/PortalDataProvider';
 import { useToast } from '../../_components/Toast';
+import Avatar from '../../_components/Avatar';
 import { ApiError } from '../../_lib/api';
 
 export default function SettingsPage() {
-  const { currentUser, updateProfile, setDeactivated, deleteAccount } = usePortalData();
+  const { currentUser, state, updateProfile, setDeactivated, deleteAccount, unblockMember } = usePortalData();
   const { user } = useUser();
   const router = useRouter();
   const toast = useToast();
   const [deleting, setDeleting] = useState(false);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
+
+  async function handleUnblock(memberId: string, name: string) {
+    setUnblockingId(memberId);
+    try {
+      await unblockMember(memberId);
+      toast(`${name.split(' ')[0]} is unblocked.`, 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Could not unblock. Try again.', 'error');
+    } finally {
+      setUnblockingId(null);
+    }
+  }
 
   async function toggleReferrals(value: boolean) {
     try {
@@ -130,6 +144,29 @@ export default function SettingsPage() {
           </div>
           <span className="switch"><input type="checkbox" defaultChecked disabled /><span className="track" /></span>
         </div>
+      </div>
+
+      <div className="settings-section">
+        <h2>Blocked members</h2>
+        <p className="desc">
+          People you&apos;ve blocked can&apos;t see your profile, send you requests or message you, and you won&apos;t see theirs.
+          They aren&apos;t told. Unblocking doesn&apos;t restore a connection that ended; either of you can send a new request.
+        </p>
+        {state.blocked.length === 0 ? (
+          <p className="desc muted-note">You haven&apos;t blocked anyone.</p>
+        ) : (
+          state.blocked.map(b => (
+            <div className="settings-row" key={b.id}>
+              <div className="blocked-member">
+                <Avatar name={b.name} initials={initialsFromName(b.name)} color="slate" imageUrl={b.avatarUrl} size="sm" />
+                <strong>{b.name}</strong>
+              </div>
+              <button className="btn-outline btn-sm" onClick={() => handleUnblock(b.id, b.name)} disabled={unblockingId === b.id}>
+                {unblockingId === b.id ? 'Working…' : 'Unblock'}
+              </button>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="settings-section danger-zone">
