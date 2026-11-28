@@ -10,6 +10,7 @@ import { shortTime, useNow } from '../../_lib/time';
 import type { Connection, ConnectionRequest, Member } from '../../_lib/types';
 import Avatar from '../../_components/Avatar';
 import CardSkeleton from '../../_components/CardSkeleton';
+import MemberCard, { BrowseFooter } from '../../_components/MemberCard';
 import StatusPill from '../../_components/StatusPill';
 import { useToast } from '../../_components/Toast';
 
@@ -217,7 +218,7 @@ export default function DashboardPage() {
         <Link href="/portal/discover" className="btn-ghost" style={{ padding: 0 }}>See all &rarr;</Link>
       </div>
       {suggestedLoading ? (
-        <div className="pf-grid" style={{ marginBottom: 32 }}>
+        <div className="member-grid" style={{ marginBottom: 32 }}>
           {Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)}
         </div>
       ) : suggested.length === 0 ? (
@@ -225,34 +226,10 @@ export default function DashboardPage() {
           <span>No new suggestions right now, check back soon or browse everyone in Discover.</span>
         </div>
       ) : (
-        <div className="pf-grid" style={{ marginBottom: 32 }}>
-          {suggested.map(pro => {
-            const isStudentType = Boolean(pro.university && pro.major);
-            const isProfessionalType = Boolean(pro.company && pro.role);
-            return (
-              <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
-                <div className="pf-card-top">
-                  <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
-                  <div>
-                    <div className="pf-card-name">{pro.name}</div>
-                    {isProfessionalType && <div className="pf-card-headline">{pro.role} &middot; {pro.company}</div>}
-                  </div>
-                </div>
-                {isStudentType && (
-                  <div className="pf-card-meta">
-                    <span>{pro.university}</span>
-                    <span>{pro.major}</span>
-                  </div>
-                )}
-                {pro.bio && <p className="pf-card-bio">{pro.bio}</p>}
-                {isProfessionalType && pro.referralsAvailable && (
-                  <div className="pf-card-avail">
-                    <span className="avail-pill referrals">Open to referrals</span>
-                  </div>
-                )}
-              </Link>
-            );
-          })}
+        <div className="member-grid" style={{ marginBottom: 32 }}>
+          {suggested.map(pro => (
+            <MemberCard key={pro.id} member={pro} href={`/portal/professionals/${pro.id}`} footer={<BrowseFooter member={pro} />} />
+          ))}
         </div>
       )}
 

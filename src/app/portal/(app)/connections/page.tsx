@@ -1,23 +1,126 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Users, MessageSquare, Ban, Paperclip } from 'lucide-react';
+import { Users, MessageSquare, Ban, MoreHorizontal, UserMinus } from 'lucide-react';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { useChatWidget } from '../../_lib/ChatWidgetProvider';
-import { REQUEST_TYPE_LABELS } from '../../_lib/types';
 import { ApiError } from '../../_lib/api';
-import Avatar from '../../_components/Avatar';
+import type { Member } from '../../_lib/types';
+import MemberCard from '../../_components/MemberCard';
 import StatusPill from '../../_components/StatusPill';
 import { useToast } from '../../_components/Toast';
 
+type Pending = 'cancel' | 'block' | null;
+
+function ConnectionMenu({
+  member,
+  canCancel,
+  busy,
+  onCancel,
+  onBlock,
+}: {
+  member: Member;
+  canCancel: boolean;
+  busy: boolean;
+  onCancel: () => void;
+  onBlock: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<Pending>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const firstName = member.name.split(' ')[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function close() {
+      setOpen(false);
+      setPending(null);
+    }
+    function onPointer(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) close();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="card-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="btn-icon"
+        aria-label={`More options for ${member.name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(o => !o);
+          setPending(null);
+        }}
+      >
+        <MoreHorizontal size={18} />
+      </button>
+      {open && (
+        <div className="card-menu-pop" role="menu">
+          {pending === null ? (
+            <>
+              {canCancel && (
+                <button type="button" role="menuitem" className="card-menu-item" onClick={() => setPending('cancel')}>
+                  <UserMinus size={15} aria-hidden="true" /> Cancel connection
+                </button>
+              )}
+              <button type="button" role="menuitem" className="card-menu-item danger" onClick={() => setPending('block')}>
+                <Ban size={15} aria-hidden="true" /> Block
+              </button>
+            </>
+          ) : (
+            <div className="card-menu-confirm">
+              <p>
+                {pending === 'cancel'
+                  ? `End your connection with ${firstName}? You'll need a new request to message again.`
+                  : `Block ${firstName}? Neither of you will be able to see each other's profile or message. You can undo this in Settings.`}
+              </p>
+              <div className="card-menu-confirm-actions">
+                <button type="button" className="btn-outline btn-sm" onClick={() => setPending(null)} disabled={busy}>
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline btn-sm btn-danger"
+                  disabled={busy}
+                  onClick={() => {
+                    if (pending === 'cancel') onCancel();
+                    else onBlock();
+                    setOpen(false);
+                    setPending(null);
+                  }}
+                >
+                  {pending === 'cancel' ? 'Cancel connection' : 'Block'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ConnectionsPage() {
-  const { state, currentUserId, cancelConnection } = usePortalData();
-  const { openChat } = useChatWidget();
+  const { state, currentUserId, cancelConnection, blockMember, isBlocked } = usePortalData();
+  const { openChat, closeChat } = useChatWidget();
   const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const connections = state.connections.filter(c => c.memberIds.includes(currentUserId));
+  const connections = state.connections.filter(
+    c => c.memberIds.includes(currentUserId) && !isBlocked(c.memberIds.find(id => id !== currentUserId)!)
+  );
 
   async function run(id: string, action: () => Promise<void>, successMsg: string, failMsg: string) {
     setBusyId(id);
@@ -45,52 +148,49 @@ export default function ConnectionsPage() {
           <div className="empty-state-actions"><Link href="/portal/discover" className="btn-outline btn-sm">Browse Discover</Link></div>
         </div>
       ) : (
-        <div className="conn-grid">
+        <div className="member-grid">
           {connections.map(c => {
             const otherId = c.memberIds.find(id => id !== currentUserId)!;
             const other = state.members[otherId];
             if (!other) return null;
-            const sourceRequest = state.requests.find(r => r.id === c.requestId);
             const busy = busyId === c.id;
+            const cancelled = c.status === 'cancelled';
             return (
-              <div className="conn-card" key={c.id}>
-                <Link href={`/portal/professionals/${other.id}`} className="conn-card-top">
-                  <Avatar name={other.name} initials={other.initials} color={other.avatarColor} imageUrl={other.avatarUrl} size="md" />
-                  <div>
-                    <div className="conn-card-name">{other.name}</div>
-                    <div className="conn-card-sub">{other.role ? `${other.role} · ${other.company}` : other.headline}</div>
-                  </div>
-                </Link>
-                <div className="conn-card-sub">
-                  Connected {c.since}
-                  {sourceRequest && <> &middot; {REQUEST_TYPE_LABELS[sourceRequest.requestType]}</>}
-                </div>
-
-                <div className="conn-card-sub">
-                  <button className="btn-ghost" style={{ padding: 0 }} onClick={() => openChat(c.id)}>
-                    <Paperclip size={15} /> Send a resume from the chat
-                  </button>
-                </div>
-
-                <div className="conn-card-foot">
-                  <StatusPill status={c.status} />
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn-outline btn-sm" onClick={() => openChat(c.id)}>
-                      <MessageSquare size={15} /> Message
-                    </button>
-                  </div>
-                </div>
-                {c.status !== 'cancelled' && (
-                  <button
-                    className="btn-ghost danger"
-                    style={{ alignSelf: 'flex-start' }}
-                    disabled={busy}
-                    onClick={() => run(c.id, () => cancelConnection(c.id), 'Connection cancelled.', 'Could not cancel that connection. Try again.')}
-                  >
-                    <Ban size={15} /> Cancel connection
-                  </button>
-                )}
-              </div>
+              <MemberCard
+                key={c.id}
+                member={other}
+                className={cancelled ? 'is-cancelled' : ''}
+                meta={`Connected ${c.since.toLowerCase()}`}
+                footer={
+                  <>
+                    {cancelled ? <StatusPill status={c.status} /> : <span />}
+                    <div className="member-card-actions">
+                      <button className="btn-outline btn-sm" onClick={() => openChat(c.id)}>
+                        <MessageSquare size={15} /> Message
+                      </button>
+                      <ConnectionMenu
+                        member={other}
+                        canCancel={!cancelled}
+                        busy={busy}
+                        onCancel={() =>
+                          run(c.id, () => cancelConnection(c.id), 'Connection cancelled.', 'Could not cancel that connection. Try again.')
+                        }
+                        onBlock={() =>
+                          run(
+                            c.id,
+                            async () => {
+                              await blockMember(other.id);
+                              closeChat(c.id);
+                            },
+                            `${other.name.split(' ')[0]} is blocked. You can undo this in Settings.`,
+                            'Could not block this member. Try again.'
+                          )
+                        }
+                      />
+                    </div>
+                  </>
+                }
+              />
             );
           })}
         </div>

@@ -492,37 +492,100 @@
 .filter-reset:hover { color: var(--moss); }
 .filter-count { font-size: 13px; color: var(--ink-3); margin-bottom: 16px; }
 
-/* ---------- Discover grid / professional card ---------- */
-.pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
-.pf-card {
-  background: var(--moss-deep);
-  background-image: radial-gradient(ellipse 120% 60% at 0% 0%, rgba(44,104,68,.35), transparent 60%);
-  padding: 20px; display: flex; flex-direction: column; gap: 12px;
-  min-height: 170px;
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
-  transition: transform .3s var(--ease-out), box-shadow .3s var(--ease-out);
+/* ---------- Member card (Discover, Dashboard suggestions, Connections) ----------
+   One design for all three. Grid items stretch to the tallest card in the
+   row; every variable-length line is clamped and the footer is pushed to the
+   bottom, so cards in a row line up. */
+.member-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.member-card {
+  position: relative; display: flex; flex-direction: column; gap: 14px; min-width: 0;
+  background: #fff; border-radius: var(--radius-lg); padding: 22px 20px 16px;
+  border-top: 3px solid var(--moss);
+  box-shadow: var(--shadow-sm); color: inherit; text-decoration: none;
+  transition: transform .2s var(--ease-out), box-shadow .2s var(--ease-out);
 }
-.pf-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-md); }
-.pf-card:active { transform: translateY(-2px); }
-.pf-card-top { display: flex; gap: 14px; align-items: flex-start; }
-.pf-card-top > div { min-width: 0; }
-.pf-card-top .avatar { width: 64px; height: 64px; font-size: 18px; }
-.pf-card-name { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-card-role-labels { display: flex; gap: 8px; margin-top: 3px; }
-.pf-card-role-labels span {
-  font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-  color: rgba(255,255,255,.55);
+.member-card-link:hover, .member-card-link:focus-visible,
+article.member-card:hover, article.member-card:focus-within { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.member-card.is-cancelled { border-top-color: var(--rule); }
+
+.member-card-head { display: flex; gap: 14px; align-items: center; min-width: 0; }
+/* 68px from a 256px source, so it stays sharp on 2x and 3x screens. */
+.member-card .avatar {
+  width: 68px; height: 68px; font-size: 19px;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--moss);
 }
-.pf-card-headline { font-size: 12.5px; color: rgba(255,255,255,.65); margin-top: 2px; line-height: 1.4; }
-.pf-card-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: rgba(255,255,255,.6); }
-.pf-card-meta span { background: var(--paper); color: var(--ink-2); padding: 3px 9px; border-radius: 999px; }
-.pf-card-bio {
-  font-size: 13px; color: rgba(255,255,255,.72); line-height: 1.6;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+.member-card .avatar.skeleton { box-shadow: none; }
+.member-card-avatar-link { display: inline-flex; flex: none; border-radius: 50%; }
+.member-card-id { min-width: 0; flex: 1; }
+.member-card-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.member-card-name {
+  font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; line-height: 1.25; color: var(--ink);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.member-card-name a { color: inherit; text-decoration: none; transition: color .15s; }
+.member-card-name a:hover { color: var(--moss); }
+.member-card-tag {
+  flex: none; font-family: 'Geist Mono', monospace; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor;
+}
+.member-card-tag-professional { color: var(--moss); }
+.member-card-tag-student { color: var(--ink-3); }
+.member-card-sub, .member-card-meta {
+  font-size: 13px; color: var(--ink-2); margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.member-card-meta { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+
+/* One line of chips; any that don't fit are clipped rather than wrapping,
+   which would make this card taller than its neighbours. */
+.member-card-chips {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 6px;
+  height: 24px; overflow: hidden;
+}
+.member-card-chips li {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11.5px; line-height: 22px; padding: 0 9px; border-radius: 999px;
+  border: 1px solid var(--rule); color: var(--ink-2);
+}
+.member-card-bio {
+  font-size: 13px; line-height: 1.6; color: var(--ink-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.member-card-foot {
+  margin-top: auto; padding-top: 12px; border-top: var(--hairline);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px;
+}
+.member-card-cta {
+  margin-left: auto; font-size: 13px; font-weight: 600; color: var(--moss); white-space: nowrap;
+}
+.member-card-cta span { display: inline-block; transition: transform .2s var(--ease-out); }
+.member-card-link:hover .member-card-cta span { transform: translateX(3px); }
+.member-card-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+
+/* ⋯ menu on a connection card */
+.card-menu { position: relative; }
+.card-menu-pop {
+  position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 20; min-width: 200px;
+  background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-lg); border: var(--hairline);
+  padding: 6px; display: flex; flex-direction: column;
+}
+.card-menu-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  padding: 9px 10px; border-radius: var(--radius-sm); font-size: 13.5px; color: var(--ink);
+  transition: background .15s, color .15s;
+}
+.card-menu-item:hover { background: var(--paper-deep); }
+.card-menu-item.danger { color: var(--danger); }
+.card-menu-confirm { padding: 8px 8px 6px; width: 260px; max-width: calc(100vw - 48px); }
+.card-menu-confirm p { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.card-menu-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+/* Keep an open menu above the neighbouring cards. */
+.member-card:has(.card-menu-pop) { z-index: 5; }
+
+@media (max-width: 1199px) { .member-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .member-grid { grid-template-columns: 1fr; } }
+
 .pf-card-avail { display: flex; gap: 6px; flex-wrap: wrap; }
-.pf-card-foot { display: flex; justify-content: space-between; align-items: center; }
-.pf-card .avail-pill.referrals { background: rgba(255,255,255,.14); color: #E8C36B; }
 
 .avail-pill {
   font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
@@ -574,7 +637,7 @@
 .entry-row:last-child { padding-bottom: 0; border-bottom: none; }
 /* Flex items default to min-width:auto, so a long school/company/credential
    name wouldn't wrap - it'd just push entry-row-actions out past the card's
-   edge. Same min-width:0 escape hatch .pf-card-top/.conn-card-top already use. */
+   edge. Same min-width:0 escape hatch .member-card-head uses. */
 .entry-row > div:first-child { min-width: 0; }
 .entry-row strong { font-size: 14.5px; color: var(--ink); overflow-wrap: anywhere; }
 .entry-row .sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; overflow-wrap: anywhere; }
@@ -671,20 +734,6 @@ a.attention-row-title:hover { color: var(--moss); }
 .tabs button:hover { color: var(--ink-2); }
 .tabs button.active { color: var(--moss); border-color: var(--moss); }
 .tabs button .count { font-family: 'Geist Mono', monospace; font-size: 10.5px; margin-left: 6px; color: inherit; opacity: .7; }
-
-/* ---------- Connections ---------- */
-.conn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.conn-card {
-  background: #fff; border-radius: var(--radius-lg); padding: 20px;
-  display: flex; flex-direction: column; gap: 12px;
-  box-shadow: var(--shadow-sm); transition: box-shadow .25s, transform .25s;
-}
-.conn-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-3px); }
-.conn-card-top { display: flex; gap: 12px; align-items: center; }
-.conn-card-top > div { min-width: 0; }
-.conn-card-name { font-weight: 600; font-size: 14.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-.conn-card-sub { font-size: 12px; color: var(--ink-3); }
-.conn-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; gap: 8px; }
 
 /* ---------- Messages inbox (the index page - opening a conversation is the floating widget below) ---------- */
 .thread-list { display: flex; flex-direction: column; background: #fff; border-radius: var(--radius-lg); padding: 8px; box-shadow: var(--shadow-sm); }
@@ -1019,7 +1068,6 @@ a.attention-row-title:hover { color: var(--moss); }
   .portal-content { padding: 24px 16px 64px; }
   .portal-topbar { padding: 14px 16px; }
   .profile-grid { grid-template-columns: 1fr; }
-  .pf-grid, .conn-grid { grid-template-columns: 1fr; }
   .filter-field { min-width: 0; flex: 1 1 140px; }
   .portal-guest-header { padding: 20px 24px; }
   .portal-entry { grid-template-columns: 1fr; grid-template-areas: "intro" "visual"; min-height: 0; }

@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { usePortalData } from '../../_lib/PortalDataProvider';
 import { ApiError } from '../../_lib/api';
 import type { Member } from '../../_lib/types';
 import { SearchX } from 'lucide-react';
-import Avatar from '../../_components/Avatar';
 import CardSkeleton from '../../_components/CardSkeleton';
+import MemberCard, { BrowseFooter } from '../../_components/MemberCard';
 import { useToast } from '../../_components/Toast';
 
 const EMPTY_TEXT = { search: '', company: '', industry: '', university: '' };
@@ -144,11 +143,11 @@ export default function DiscoverPage() {
       </div>
 
       <p className="filter-count">
-        {loading ? 'Searching…' : `${results.length}${hasMore ? '+' : ''} professional${results.length === 1 && !hasMore ? '' : 's'} found`}
+        {loading ? 'Searching…' : `${results.length}${hasMore ? '+' : ''} member${results.length === 1 && !hasMore ? '' : 's'} found`}
       </p>
 
       {loading && results.length === 0 ? (
-        <div className="pf-grid">
+        <div className="member-grid">
           {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
         </div>
       ) : results.length === 0 ? (
@@ -162,44 +161,10 @@ export default function DiscoverPage() {
         // the skeleton grid - that swap-back-and-forth is what was reading
         // as a flicker/blink, since it's not an actual page refresh.
         <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .15s', pointerEvents: loading ? 'none' : undefined }}>
-          <div className="pf-grid">
-            {results.map(pro => {
-              const isStudentType = Boolean(pro.university && pro.major);
-              const isProfessionalType = Boolean(pro.company && pro.role);
-              return (
-                <Link href={`/portal/professionals/${pro.id}`} key={pro.id} className="pf-card">
-                  <div className="pf-card-top">
-                    <Avatar name={pro.name} initials={pro.initials} color={pro.avatarColor} imageUrl={pro.avatarUrl} size="md" />
-                    <div>
-                      <div className="pf-card-name">{pro.name}</div>
-                      {(isStudentType || isProfessionalType) && (
-                        <div className="pf-card-role-labels">
-                          {isStudentType && <span>Student</span>}
-                          {isProfessionalType && <span>Professional</span>}
-                        </div>
-                      )}
-                      {isProfessionalType && (
-                        <div className="pf-card-headline">{pro.role} · {pro.company}</div>
-                      )}
-                    </div>
-                  </div>
-                  {isStudentType && (
-                    <div className="pf-card-meta">
-                      <span>{pro.university}</span>
-                      <span>{pro.major}</span>
-                    </div>
-                  )}
-                  {pro.bio && <p className="pf-card-bio">{pro.bio}</p>}
-                  {isProfessionalType && pro.referralsAvailable && (
-                    <div className="pf-card-foot">
-                      <div className="pf-card-avail">
-                        <span className="avail-pill referrals">Open to referrals</span>
-                      </div>
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
+          <div className="member-grid">
+            {results.map(pro => (
+              <MemberCard key={pro.id} member={pro} href={`/portal/professionals/${pro.id}`} footer={<BrowseFooter member={pro} />} />
+            ))}
           </div>
           {hasMore && (
             <p style={{ textAlign: 'center', marginTop: 22 }}>
