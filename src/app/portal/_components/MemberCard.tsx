@@ -55,7 +55,12 @@ export default function MemberCard({
             ) : (
               <h3 className="member-card-name"><Link href={profileHref}>{member.name}</Link></h3>
             )}
+          </div>
+          <div className="member-card-tags">
             <span className={`member-card-tag member-card-tag-${kind}`}>{kind === 'professional' ? 'Professional' : 'Student'}</span>
+            {kind === 'professional' && member.referralsAvailable && (
+              <span className="avail-pill referrals">Open to referrals</span>
+            )}
           </div>
           <div className="member-card-sub">{subtitle(member)}</div>
           {meta && <div className="member-card-meta">{meta}</div>}
@@ -79,11 +84,6 @@ export default function MemberCard({
 }
 
 /** Footer shared by Discover and Dashboard suggestions. */
-export function BrowseFooter({ member }: { member: Member }) {
-  return (
-    <>
-      {member.referralsAvailable ? <span className="avail-pill referrals">Open to referrals</span> : <span />}
-      <span className="member-card-cta">View profile <span aria-hidden="true">&rarr;</span></span>
-    </>
-  );
+export function BrowseFooter() {
+  return <span className="member-card-cta">View profile <span aria-hidden="true">&rarr;</span></span>;
 }

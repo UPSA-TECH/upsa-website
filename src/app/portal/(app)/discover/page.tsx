@@ -163,7 +163,7 @@ export default function DiscoverPage() {
         <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .15s', pointerEvents: loading ? 'none' : undefined }}>
           <div className="member-grid">
             {results.map(pro => (
-              <MemberCard key={pro.id} member={pro} href={`/portal/professionals/${pro.id}`} footer={<BrowseFooter member={pro} />} />
+              <MemberCard key={pro.id} member={pro} href={`/portal/professionals/${pro.id}`} footer={<BrowseFooter />} />
             ))}
           </div>
           {hasMore && (

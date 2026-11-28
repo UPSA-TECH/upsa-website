@@ -228,7 +228,7 @@ export default function DashboardPage() {
       ) : (
         <div className="member-grid" style={{ marginBottom: 32 }}>
           {suggested.map(pro => (
-            <MemberCard key={pro.id} member={pro} href={`/portal/professionals/${pro.id}`} footer={<BrowseFooter member={pro} />} />
+            <MemberCard key={pro.id} member={pro} href={`/portal/professionals/${pro.id}`} footer={<BrowseFooter />} />
           ))}
         </div>
       )}

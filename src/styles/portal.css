@@ -528,6 +528,11 @@ article.member-card:hover, article.member-card:focus-within { transform: transla
   flex: none; font-family: 'Geist Mono', monospace; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor;
 }
+/* Its own row under the name, so a long name never pushes the tags out and
+   the referrals pill has room beside the tag. */
+.member-card-tags { display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
+.member-card-tags .avail-pill { flex: none; padding: 3px 8px; font-size: 9.5px; line-height: 1; white-space: nowrap; }
+.member-card-tags .member-card-tag { line-height: 1; padding: 2px 7px; }
 .member-card-tag-professional { color: var(--moss); }
 .member-card-tag-student { color: var(--ink-3); }
 .member-card-sub, .member-card-meta {
